@@ -1,0 +1,844 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Network models: an interactive lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=IBM+Plex+Sans+KR:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#ECF0F3; --panel:#FBFCFD; --ink:#15253B; --ink2:#4B5C73; --line:#CCD5DE;
+  --grid:rgba(21,37,59,.055); --node:#2F74A0; --hub:#CC3F57; --edge:#15253B;
+  --muted:#AEB9C5; --hi:#F5D24E; --hi-ink:#15253B; --short:#D9820B; --chip:#E1E7ED;
+  --display:"Bricolage Grotesque", "IBM Plex Sans KR", system-ui, sans-serif;
+  --body:"IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+  --mono:"JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#0E1928; --panel:#132237; --ink:#E4ECF5; --ink2:#9AAEC5; --line:#283A54;
+    --grid:rgba(228,236,245,.045); --node:#6CB0DA; --hub:#FF6E83; --edge:#D4E3F2;
+    --muted:#43566F; --hi:#F5D24E; --hi-ink:#15253B; --short:#F2A541; --chip:#1C2E47;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#0E1928; --panel:#132237; --ink:#E4ECF5; --ink2:#9AAEC5; --line:#283A54;
+  --grid:rgba(228,236,245,.045); --node:#6CB0DA; --hub:#FF6E83; --edge:#D4E3F2;
+  --muted:#43566F; --hi:#F5D24E; --hi-ink:#15253B; --short:#F2A541; --chip:#1C2E47;
+}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*,*::before,*::after{box-sizing:inherit}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased}
+button,input,select{font:inherit;color:inherit}
+:focus-visible{outline:2.5px solid var(--hi);outline-offset:2px;border-radius:4px}
+
+.app{display:grid;grid-template-columns:212px minmax(0,1fr) 400px;max-width:1680px;margin:0 auto;min-height:100dvh}
+
+/* rail */
+.rail{position:sticky;top:env(safe-area-inset-top,0px);align-self:start;height:calc(100dvh - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px));overflow-y:auto;padding:22px 14px 20px 20px;display:flex;flex-direction:column;gap:18px}
+.brand h1{font-family:var(--display);font-weight:800;font-size:30px;line-height:1.02;letter-spacing:-.02em;margin:0}
+.brand .ko{font-family:var(--body);font-weight:600;font-size:15px;color:var(--ink2);margin-top:6px}
+.brand p{font-size:12.5px;color:var(--ink2);margin:10px 0 0;line-height:1.5}
+.group h2{font-family:var(--display);font-weight:500;font-size:13px;color:var(--ink2);margin:0 0 4px;letter-spacing:0}
+.group ul{list-style:none;margin:0;padding:0}
+.mbtn{display:block;width:100%;text-align:left;background:none;border:0;padding:5px 8px;margin:1px 0;border-radius:6px;cursor:pointer;font-size:14px;line-height:1.3}
+.mbtn:hover{background:var(--chip)}
+.mbtn[aria-current="true"]{background:var(--hi);color:var(--hi-ink);font-weight:600}
+.rail .foot{margin-top:auto;font-size:11.5px;color:var(--ink2)}
+
+/* stage */
+.stage{position:sticky;top:env(safe-area-inset-top,0px);height:calc(100dvh - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px));padding:14px 0;display:flex;flex-direction:column}
+.board{position:relative;flex:1;min-height:0;border-radius:14px;border:1px solid var(--line);overflow:hidden;
+  background-color:var(--panel);
+  background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+  background-size:22px 22px}
+#net{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
+.hud{position:absolute;left:14px;top:12px;right:14px;display:flex;justify-content:space-between;align-items:flex-start;pointer-events:none;gap:10px}
+.hud .now{font-family:var(--display);font-weight:700;font-size:20px;letter-spacing:-.01em;line-height:1.15}
+.hud .live{font-size:12.5px;color:var(--ink2);margin-top:2px}
+.legend{font-size:12px;color:var(--ink2);text-align:right;display:flex;flex-direction:column;gap:3px;align-items:flex-end}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.sw{width:10px;height:10px;border-radius:50%;display:inline-block}
+.sw.ln{width:16px;height:3px;border-radius:2px}
+.controls{position:absolute;left:12px;right:12px;bottom:12px;display:flex;gap:8px;align-items:center;background:color-mix(in srgb,var(--panel) 88%,transparent);backdrop-filter:blur(6px);border:1px solid var(--line);border-radius:12px;padding:8px 10px}
+.btn{border:1px solid var(--line);background:var(--panel);border-radius:8px;padding:6px 12px;cursor:pointer;font-size:13.5px;font-weight:500;white-space:nowrap}
+.btn:hover{border-color:var(--ink2)}
+.btn.primary{background:var(--ink);color:var(--panel);border-color:var(--ink)}
+.controls input[type=range]{flex:1;min-width:60px}
+.controls .tcount{font-size:12px;color:var(--ink2);min-width:84px;text-align:right;font-variant-numeric:tabular-nums}
+.tip{position:absolute;pointer-events:none;background:var(--ink);color:var(--panel);font-size:12px;padding:4px 8px;border-radius:6px;transform:translate(-50%,-130%);white-space:nowrap;display:none}
+
+/* panel */
+.panel{padding:22px 22px 60px 22px;min-width:0}
+.ptitle{font-family:var(--display);font-weight:800;font-size:27px;line-height:1.1;letter-spacing:-.015em;margin:0}
+.ptitle mark{background:linear-gradient(transparent 12%,var(--hi) 12%,var(--hi) 88%,transparent 88%);color:var(--hi-ink);padding:0 .12em;-webkit-box-decoration-break:clone;box-decoration-break:clone}
+.pko{font-weight:600;color:var(--ink2);margin-top:4px}
+.cite{font-size:12px;color:var(--ink2);margin-top:2px}
+.lede{margin:12px 0 0}
+section.blk{margin-top:22px;padding-top:16px;border-top:1px solid var(--line)}
+section.blk>h3{font-family:var(--display);font-weight:700;font-size:16px;margin:0 0 10px;letter-spacing:-.005em}
+.param{display:grid;grid-template-columns:1fr auto;gap:2px 10px;align-items:center;margin-bottom:10px}
+.param label{font-size:13.5px}
+.param output{font-variant-numeric:tabular-nums;font-size:13.5px;font-weight:600}
+.param input[type=range]{grid-column:1/-1;width:100%;accent-color:var(--node)}
+.seg{grid-column:1/-1;display:flex;gap:4px;flex-wrap:wrap}
+.seg button{border:1px solid var(--line);background:none;border-radius:6px;padding:3px 10px;font-size:13px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--panel);border-color:var(--ink)}
+.check{display:flex;gap:8px;align-items:center;font-size:13.5px;margin-bottom:10px;cursor:pointer}
+.check input{accent-color:var(--node);width:16px;height:16px}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.stat{background:var(--chip);border-radius:8px;padding:7px 9px}
+.stat b{display:block;font-family:var(--display);font-size:19px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.2}
+.stat small{font-size:11.5px;color:var(--ink2)}
+.note{font-size:12.5px;color:var(--ink2);margin-top:8px}
+.chartwrap{position:relative}
+canvas.chart{width:100%;height:220px;display:block}
+.charthead{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.charthead .seg{grid-column:auto}
+ol.steps{margin:0;padding-left:20px}
+ol.steps li{margin-bottom:4px}
+.eq{background:var(--chip);border-radius:8px;padding:10px 12px;margin:10px 0;font-size:15.5px;overflow-x:auto;font-family:"Cambria Math","STIX Two Math","Times New Roman",serif}
+.eq i{font-style:italic}
+.notice p{margin:0 0 8px}
+pre.code{background:var(--chip);border-radius:8px;padding:10px 12px;font-family:var(--mono);font-size:12.5px;line-height:1.55;overflow-x:auto;margin:0}
+.credits{margin-top:28px;padding-top:14px;border-top:1px solid var(--line);font-size:12.5px;color:var(--ink2)}
+.credits p{margin:0 0 6px}
+.credits b{color:var(--ink);font-weight:600}
+.expdesc{font-size:13.5px;margin:0 0 10px}
+.expstatus{font-size:12.5px;color:var(--ink2);margin-left:8px}
+
+@media (max-width:1180px){ .app{grid-template-columns:188px minmax(0,1fr) 340px} .panel{padding:18px 16px 60px} }
+@media (max-width:920px){
+  .app{grid-template-columns:1fr;min-height:0}
+  .rail{position:static;height:auto;padding:16px 14px 6px;gap:10px}
+  .brand h1{font-size:26px}
+  .brand p{display:none}
+  .groups{display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;scrollbar-width:thin}
+  .group{display:contents}
+  .group h2{display:none}
+  .group ul{display:contents}
+  .mbtn{width:auto;white-space:nowrap;border:1px solid var(--line);flex:none}
+  .rail .foot{display:none}
+  .stage{position:static;height:64vh;min-height:380px;padding:4px 10px}
+  .panel{padding:16px 14px 50px}
+}
+@media (prefers-reduced-motion: reduce){ *{scroll-behavior:auto} }
+</style>
+</head>
+<body>
+<div class="app">
+  <nav class="rail" aria-label="Models">
+    <div class="brand">
+      <h1>Network models</h1>
+      <p>Build each model from Lecture 5, watch it grow link by link, and compare its structure with real networks: short paths, many triangles, and hubs.</p>
+    </div>
+    <div class="groups" id="groups"></div>
+    <div class="foot"><p style="margin:0 0 8px">Hover a node to see its degree. Drag sliders to rebuild instantly; press Play to watch the construction.</p><p class="credit" style="margin:0">Created by Claude Opus 5.5 (Anthropic), based on the Lecture 5 slides on network models by Sang Hoon Lee.</p></div>
+  </nav>
+
+  <div class="stage">
+    <div class="board" id="board">
+      <canvas id="net" aria-label="Network visualization"></canvas>
+      <div class="hud">
+        <div><div class="now" id="hudTitle"></div><div class="live" id="hudLive"></div></div>
+        <div class="legend" id="legend"></div>
+      </div>
+      <div class="tip" id="tip"></div>
+      <div class="controls">
+        <button class="btn primary" id="play">Play build</button>
+        <button class="btn" id="regen">New sample</button>
+        <input type="range" id="scrub" min="0" max="100" value="100" aria-label="Construction progress">
+        <span class="tcount" id="tcount"></span>
+      </div>
+    </div>
+  </div>
+
+  <main class="panel" id="panel">
+    <h2 class="ptitle" id="pTitle"></h2>
+    <div class="pko" id="pKo"></div>
+    <div class="cite" id="pCite"></div>
+    <p class="lede" id="pLede"></p>
+
+    <section class="blk"><h3>Parameters</h3><div id="params"></div></section>
+
+    <section class="blk"><h3>Measured structure</h3>
+      <div class="stats" id="stats"></div>
+      <div class="note" id="statNote"></div>
+    </section>
+
+    <section class="blk">
+      <div class="charthead"><h3 style="margin:0">Degree distribution <i>P</i>(<i>k</i>)</h3>
+        <div class="seg" id="scaleSeg"><button data-s="lin">Linear</button><button data-s="log">Log–log</button></div></div>
+      <div class="chartwrap"><canvas class="chart" id="dist"></canvas></div>
+    </section>
+
+    <section class="blk"><h3>How it is built</h3><div id="pBuild"></div></section>
+    <section class="blk notice"><h3>What to notice</h3><div id="pNotice"></div></section>
+
+    <section class="blk" id="expBlk"><h3 id="expTitle">Experiment</h3>
+      <p class="expdesc" id="expDesc"></p>
+      <div><button class="btn" id="expRun">Run experiment</button><span class="expstatus" id="expStatus"></span></div>
+      <div class="chartwrap" style="margin-top:10px"><canvas class="chart" id="expChart" style="height:240px"></canvas></div>
+    </section>
+
+    <section class="blk"><h3>In code</h3><pre class="code" id="pCode"></pre></section>
+
+    <footer class="credits">
+      <p>Created by <b>Claude Opus 5.5</b> (Anthropic), based on the Lecture 5 slides on network models by <b>Sang Hoon Lee</b>, Gyeongsang National University.</p>
+      <p>Model descriptions follow the lecture and the textbook it draws on, <i>A First Course in Network Science</i> by F. Menczer, S. Fortunato and C. A. Davis. Literature references were added by Claude and should be checked against the original sources.</p>
+    </footer>
+  </main>
+</div>
+
+<script>
+"use strict";
+/* ============ utilities ============ */
+const $ = s => document.querySelector(s);
+const rnd = Math.random, ri = n => (Math.random() * n) | 0;
+const KEY = (u, v) => u < v ? u * 100000 + v : v * 100000 + u;
+function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=ri(i+1); const t=a[i]; a[i]=a[j]; a[j]=t; } return a; }
+const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
+const fmt=(x,d=2)=> (x===null||x===undefined||!isFinite(x))?'–':(Math.abs(x)>=100?x.toFixed(0):x.toFixed(d));
+
+/* ============ generators ============ */
+function gnm(N,L){
+  L=Math.min(Math.round(L), N*(N-1)/2); const S=new Set(), E=[];
+  if (L > 0.5*N*(N-1)/2){ // dense: sample by shuffling all pairs
+    const all=[]; for(let u=0;u<N;u++)for(let v=u+1;v<N;v++)all.push([u,v]);
+    return {n:N, edges:shuffle(all).slice(0,L)};
+  }
+  while(E.length<L){ const u=ri(N), v=ri(N); if(u===v) continue; const k=KEY(u,v); if(S.has(k)) continue; S.add(k); E.push([u,v]); }
+  return {n:N, edges:E};
+}
+function gnp(N,p){ const E=[]; for(let u=0;u<N;u++) for(let v=u+1;v<N;v++) if(rnd()<p) E.push([u,v]); return {n:N, edges:shuffle(E)}; }
+function ringBase(N,k){
+  const E=[], S=new Set(); const h=Math.min(k>>1,(N-1)>>1);
+  for(let j=1;j<=h;j++) for(let u=0;u<N;u++){ const v=(u+j)%N; const kk=KEY(u,v); if(!S.has(kk)){S.add(kk);E.push([u,v]);} }
+  return {E,S};
+}
+function ws(N,k,p){
+  const {E,S}=ringBase(N,k); const keep=[], sc=[];
+  for(const e of E){
+    if(rnd()<p){ const u=e[0]; let w, t=0;
+      do{ w=ri(N); t++; } while((w===u||S.has(KEY(u,w))) && t<300);
+      if(t<300){ S.delete(KEY(e[0],e[1])); S.add(KEY(u,w)); sc.push([u,w]); continue; }
+    }
+    keep.push(e);
+  }
+  return {n:N, edges:keep.concat(sc), ring:true, k};
+}
+function nw(N,k,p){
+  const {E,S}=ringBase(N,k); const add=[];
+  for(const e of E){
+    if(rnd()<p){ const u=e[0]; let w,t=0;
+      do{ w=ri(N); t++; } while((w===u||S.has(KEY(u,w))) && t<300);
+      if(t<300){ S.add(KEY(u,w)); add.push([u,w]); }
+    }
+  }
+  return {n:N, edges:E.concat(add), ring:true, k};
+}
+function samplePoisson(l){ const L=Math.exp(-l); let k=0,p=1; do{ k++; p*=rnd(); } while(p>L); return k-1; }
+function degreeSequence(N,dist,kav,gamma,kmin){
+  const d=new Array(N);
+  for(let i=0;i<N;i++){
+    if(dist==='poisson') d[i]=samplePoisson(kav);
+    else if(dist==='power') d[i]=Math.min(N-1, Math.floor(kmin*Math.pow(1-rnd(),-1/(gamma-1))));
+    else d[i]=Math.round(kav);
+  }
+  let s=d.reduce((a,b)=>a+b,0); if(s%2) d[ri(N)]++;
+  return d;
+}
+function configModel(N,dist,kav,gamma,kmin,erase,seq){
+  const d=seq||degreeSequence(N,dist,kav,gamma,kmin);
+  const stubs=[]; for(let i=0;i<N;i++) for(let j=0;j<d[i];j++) stubs.push(i);
+  shuffle(stubs);
+  let E=[]; for(let i=0;i+1<stubs.length;i+=2) E.push([stubs[i],stubs[i+1]]);
+  let self=0, multi=0; const C=new Map();
+  for(const [u,v] of E){ if(u===v){self++; continue;} const k=KEY(u,v); const c=C.get(k)||0; if(c>0) multi++; C.set(k,c+1); }
+  const total=E.length;
+  if(erase){ const seen=new Set(); E=E.filter(([u,v])=>{ if(u===v) return false; const k=KEY(u,v); if(seen.has(k)) return false; seen.add(k); return true; }); }
+  return {n:N, edges:E, target:d, self, multi, total, erased:erase, multigraph:!erase};
+}
+/* growth framework */
+function grow(N,m,choose,setup){
+  m=Math.max(1,m); const m0=Math.min(N,m+1);
+  const adj=Array.from({length:N},()=>[]), deg=new Float64Array(N), E=[], birth=new Int32Array(N);
+  const ctx={adj,deg,E,N,m,pool:[]};
+  const link=(a,b)=>{ E.push([a,b]); adj[a].push(b); adj[b].push(a); deg[a]++; deg[b]++; ctx.pool.push(a,b); };
+  if(setup) setup(ctx);
+  for(let i=0;i<m0;i++) for(let j=0;j<i;j++) link(i,j);
+  for(let i=m0;i<N;i++){ birth[i]=E.length; const T=choose(i,ctx); for(const t of T) link(i,t); }
+  return {n:N, edges:E, birth, ctx};
+}
+function uniformDistinct(count,n,out=[]){ count=Math.min(count,n); const s=new Set(out); while(out.length<count){ const t=ri(n); if(!s.has(t)){s.add(t); out.push(t);} } return out; }
+function paOne(ctx,exclude){ // linear PA using endpoint pool
+  const P=ctx.pool; for(let t=0;t<60;t++){ const x=P[ri(P.length)]; if(!exclude.includes(x)) return x; }
+  let x; do{ x=ri(ctx.i0||1); } while(exclude.includes(x)); return x;
+}
+function paDistinct(count,i,ctx){ const out=[]; ctx.i0=i; while(out.length<Math.min(count,i)) out.push(paOne(ctx,out)); return out; }
+function pickWeighted(count,n,wfn){
+  count=Math.min(count,n); const cum=new Float64Array(n); let s=0;
+  for(let j=0;j<n;j++){ s+=Math.max(0,wfn(j)); cum[j]=s; }
+  const out=[], used=new Set();
+  if(!(s>0) || !isFinite(s)) return uniformDistinct(count,n);
+  let tries=0;
+  while(out.length<count && tries<count*80){
+    tries++; const r=rnd()*s; let lo=0, hi=n-1;
+    while(lo<hi){ const mid=(lo+hi)>>1; if(cum[mid]<r) lo=mid+1; else hi=mid; }
+    if(!used.has(lo)){ used.add(lo); out.push(lo); }
+  }
+  return uniformDistinct(count,n,out);
+}
+const ba=(N,m,pa)=>grow(N,m,(i,c)=> pa? paDistinct(m,i,c) : uniformDistinct(m,i));
+const gpa=(N,m,a)=>grow(N,m,(i,c)=>pickWeighted(m,i,j=>Math.pow(c.deg[j],a)));
+const attract=(N,m,A)=>grow(N,m,(i,c)=>pickWeighted(m,i,j=>A+c.deg[j]));
+function fitness(N,m){
+  const g=grow(N,m,(i,c)=>pickWeighted(m,i,j=>c.eta[j]*c.deg[j]), c=>{ c.eta=new Float64Array(N); for(let i=0;i<N;i++) c.eta[i]=rnd(); });
+  g.eta=g.ctx.eta; return g;
+}
+function holmeKim(N,m,pt){
+  return grow(N,m,(i,c)=>{
+    c.i0=i; const out=[]; const first=paOne(c,out); out.push(first); let target=first;
+    while(out.length<Math.min(m,i)){
+      if(rnd()<pt){ const cand=c.adj[target].filter(x=>!out.includes(x)); if(cand.length){ out.push(cand[ri(cand.length)]); continue; } }
+      target=paOne(c,out); out.push(target);
+    }
+    return out;
+  });
+}
+function randomWalk(N,m,p){
+  return grow(N,m,(i,c)=>{
+    const j=ri(i); const out=[j];
+    while(out.length<Math.min(m,i)){
+      let t=-1;
+      if(rnd()<p){ const cand=c.adj[j].filter(x=>!out.includes(x)); if(cand.length) t=cand[ri(cand.length)]; }
+      if(t<0){ do{ t=ri(i); } while(out.includes(t)); }
+      out.push(t);
+    }
+    return out;
+  });
+}
+function rankModel(N,m,a,prop){
+  return grow(N,m,(i,c)=>{
+    if(prop==='age') return pickWeighted(m,i,j=>Math.pow(j+1,-a));
+    const idx=Array.from({length:i},(_,j)=>j); idx.sort((x,y)=> c.deg[y]-c.deg[x] || x-y);
+    const W=new Float64Array(i); for(let r=0;r<i;r++) W[idx[r]]=Math.pow(r+1,-a);
+    return pickWeighted(m,i,j=>W[j]);
+  });
+}
+function staticModel(N,m,a){
+  const cum=new Float64Array(N); let s=0; for(let i=0;i<N;i++){ s+=Math.pow(i+1,-a); cum[i]=s; }
+  const draw=()=>{ const r=rnd()*s; let lo=0,hi=N-1; while(lo<hi){const mid=(lo+hi)>>1; if(cum[mid]<r) lo=mid+1; else hi=mid;} return lo; };
+  const target=Math.min(m*N, N*(N-1)/2*0.9), S=new Set(), E=[]; let tries=0;
+  while(E.length<target && tries<target*80){ tries++; const u=draw(), v=draw(); if(u===v) continue; const k=KEY(u,v); if(S.has(k)) continue; S.add(k); E.push([u,v]); }
+  return {n:N, edges:E, gamma:(1+a)/a};
+}
+
+/* ============ analysis ============ */
+function analyze(g){
+  const n=g.n, deg=new Int32Array(n), nb=Array.from({length:n},()=>new Set());
+  for(const [u,v] of g.edges){ deg[u]++; deg[v]++; if(u!==v){ nb[u].add(v); nb[v].add(u);} }
+  const A=nb.map(s=>Array.from(s));
+  // components
+  const comp=new Int32Array(n).fill(-1); let best=-1,bestSize=0,cid=0; const q=new Int32Array(n);
+  for(let s=0;s<n;s++){ if(comp[s]>=0) continue; let h=0,t=0; q[t++]=s; comp[s]=cid; let size=0;
+    while(h<t){ const x=q[h++]; size++; for(const y of A[x]) if(comp[y]<0){comp[y]=cid;q[t++]=y;} }
+    if(size>bestSize){bestSize=size;best=cid;} cid++; }
+  const giant=new Uint8Array(n); for(let i=0;i<n;i++) giant[i]=comp[i]===best?1:0;
+  // clustering (average local, zeros included like NetworkX)
+  let Csum=0, tri=0, trip=0;
+  for(let i=0;i<n;i++){ const ki=A[i].length; if(ki<2) continue; let links=0; const ai=A[i];
+    for(let a=0;a<ki;a++){ const sa=nb[ai[a]]; for(let b=a+1;b<ki;b++) if(sa.has(ai[b])) links++; }
+    Csum+= 2*links/(ki*(ki-1)); tri+=links; trip+=ki*(ki-1)/2; }
+  const C=n? Csum/n : 0;
+  // average shortest path in giant component (sampled)
+  const gnodes=[]; for(let i=0;i<n;i++) if(giant[i]) gnodes.push(i);
+  let ell=NaN;
+  if(gnodes.length>1){
+    const src = gnodes.length<=160? gnodes : shuffle(gnodes.slice()).slice(0,160);
+    const dist=new Int32Array(n); let tot=0, cnt=0;
+    for(const s of src){ dist.fill(-1); dist[s]=0; let h=0,t=0; q[t++]=s;
+      while(h<t){ const x=q[h++]; for(const y of A[x]) if(dist[y]<0){ dist[y]=dist[x]+1; tot+=dist[y]; cnt++; q[t++]=y; } } }
+    ell=tot/cnt;
+  }
+  let kmax=0; for(let i=0;i<n;i++) if(deg[i]>kmax) kmax=deg[i];
+  return {n, L:g.edges.length, deg, A, giant, S:bestSize/n, C, trans: trip? tri/trip:0, ell, kmax, kav:2*g.edges.length/n};
+}
+function degDist(deg, log){
+  const n=deg.length, cnt=new Map(); let kmax=0;
+  for(const d of deg){ cnt.set(d,(cnt.get(d)||0)+1); if(d>kmax)kmax=d; }
+  if(!log) return [...cnt.entries()].sort((a,b)=>a[0]-b[0]).map(([k,c])=>[k,c/n]);
+  const pts=[]; let lo=1;
+  while(lo<=kmax){ const hi=Math.max(lo+1, Math.ceil(lo*1.38)); let c=0; for(let k=lo;k<hi;k++) c+=cnt.get(k)||0;
+    if(c>0) pts.push([Math.sqrt(lo*(hi-1)) , c/n/(hi-lo)]); lo=hi; }
+  return pts;
+}
+function poissonPts(l,kmax){ const out=[]; let p=Math.exp(-l); for(let k=0;k<=kmax;k++){ if(k>0)p*=l/k; out.push([k,p]); } return out; }
+
+/* ============ chart ============ */
+const SUP={'0':'⁰','1':'¹','2':'²','3':'³','4':'⁴','5':'⁵','6':'⁶','7':'⁷','8':'⁸','9':'⁹','-':'⁻'};
+function css(v){ return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+function niceStep(range){ const r=range/5; const p=Math.pow(10,Math.floor(Math.log10(r))); const f=r/p; return (f<1.5?1:f<3?2:f<7?5:10)*p; }
+function plot(cv,o){
+  const dpr=window.devicePixelRatio||1, W=cv.clientWidth, H=cv.clientHeight;
+  cv.width=W*dpr; cv.height=H*dpr; const c=cv.getContext('2d'); c.setTransform(dpr,0,0,dpr,0,0); c.clearRect(0,0,W,H);
+  const ink=css('--ink'), ink2=css('--ink2'), line=css('--line');
+  const L=48,R=10,T=10,B=36, pw=W-L-R, ph=H-T-B;
+  let all=[]; for(const s of o.series) for(const p of s.pts){ if(o.logx&&p[0]<=0) continue; if(o.logy&&p[1]<=0) continue; if(isFinite(p[0])&&isFinite(p[1])) all.push(p); }
+  c.font='12px '+css('--body');
+  if(!all.length){ c.fillStyle=ink2; c.fillText(o.empty||'No data yet', L+8, T+20); return; }
+  const tx=x=>o.logx?Math.log10(x):x, ty=y=>o.logy?Math.log10(y):y;
+  let x0=o.xmin!==undefined?tx(o.xmin):Math.min(...all.map(p=>tx(p[0]))), x1=o.xmax!==undefined?tx(o.xmax):Math.max(...all.map(p=>tx(p[0])));
+  let y0=o.ymin!==undefined?ty(o.ymin):Math.min(...all.map(p=>ty(p[1]))), y1=o.ymax!==undefined?ty(o.ymax):Math.max(...all.map(p=>ty(p[1])));
+  if(x1-x0<1e-9){x0-=1;x1+=1;} if(y1-y0<1e-9){y0-=o.logy?1:0.5; y1+=o.logy?1:0.5;}
+  if(o.logy && o.ymin===undefined){ y0=Math.floor(y0*2)/2-0.1; } if(o.logy&&o.ymax===undefined) y1+=0.15;
+  if(!o.logy && o.ymin===undefined) { y0=Math.min(0,y0); y1+= (y1-y0)*0.08; }
+  if(o.logx && o.xmin===undefined) x0-=0.08; if(o.logx&&o.xmax===undefined) x1+=0.08;
+  if(!o.logx && o.xmin===undefined) x0=Math.min(0,x0);
+  const X=v=>L+(tx(v)-x0)/(x1-x0)*pw, Y=v=>T+ph-(ty(v)-y0)/(y1-y0)*ph;
+  const XL=v=>L+(v-x0)/(x1-x0)*pw, YL=v=>T+ph-(v-y0)/(y1-y0)*ph;
+  c.strokeStyle=line; c.lineWidth=1; c.fillStyle=ink2; c.textAlign='center';
+  const ticks=(a,b,log)=>{ const t=[]; if(log){ for(let e=Math.ceil(a);e<=Math.floor(b);e++) t.push(e); } else { const st=niceStep(b-a); for(let v=Math.ceil(a/st)*st; v<=b+1e-9; v+=st) t.push(+v.toFixed(10)); } return t; };
+  const lab=(v,log)=> log? '10'+String(v).split('').map(ch=>SUP[ch]||ch).join('') : (Math.abs(v)<1e-9?'0':(Math.abs(v)>=1000? v.toFixed(0): +v.toPrecision(3)+''));
+  for(const v of ticks(x0,x1,o.logx)){ const px=XL(v); c.beginPath(); c.moveTo(px,T); c.lineTo(px,T+ph); c.globalAlpha=.6; c.stroke(); c.globalAlpha=1; c.fillText(lab(v,o.logx),px,T+ph+15); }
+  c.textAlign='right';
+  for(const v of ticks(y0,y1,o.logy)){ const py=YL(v); c.beginPath(); c.moveTo(L,py); c.lineTo(L+pw,py); c.globalAlpha=.6; c.stroke(); c.globalAlpha=1; c.fillText(lab(v,o.logy),L-6,py+4); }
+  c.strokeStyle=ink2; c.beginPath(); c.moveTo(L,T); c.lineTo(L,T+ph); c.lineTo(L+pw,T+ph); c.stroke();
+  c.fillStyle=ink2; c.textAlign='center'; c.fillText(o.xlabel||'',L+pw/2,H-4);
+  c.save(); c.translate(12,T+ph/2); c.rotate(-Math.PI/2); c.fillText(o.ylabel||'',0,0); c.restore();
+  c.save(); c.beginPath(); c.rect(L,T,pw,ph); c.clip();
+  for(const s of o.series){
+    const pts=s.pts.filter(p=>(!o.logx||p[0]>0)&&(!o.logy||p[1]>0)&&isFinite(p[1]));
+    c.strokeStyle=c.fillStyle=s.color||ink; c.lineWidth=s.width||2;
+    if(s.kind==='line'){ c.setLineDash(s.dash||[]); c.beginPath(); pts.forEach((p,i)=>{ const px=X(p[0]),py=Y(p[1]); i?c.lineTo(px,py):c.moveTo(px,py); }); c.stroke(); c.setLineDash([]); }
+    else { for(const p of pts){ c.beginPath(); c.arc(X(p[0]),Y(p[1]),s.r||3,0,7); if(s.hollow){c.lineWidth=1.4;c.stroke();} else c.fill(); } }
+  }
+  c.restore();
+  // legend
+  const named=o.series.filter(s=>s.label); c.textAlign='right'; c.font='12px '+css('--body');
+  named.forEach((s,i)=>{ const y=T+14+i*16, x=L+pw-6; c.fillStyle=ink; c.fillText(s.label,x-22,y+4);
+    c.strokeStyle=c.fillStyle=s.color; if(s.kind==='line'){ c.lineWidth=2; c.setLineDash(s.dash||[]); c.beginPath(); c.moveTo(x-16,y); c.lineTo(x,y); c.stroke(); c.setLineDash([]);} else { c.beginPath(); c.arc(x-8,y,3.2,0,7); s.hollow?(c.lineWidth=1.4,c.stroke()):c.fill(); } });
+}
+function guide(gamma, pts, label, color){ // power-law guide through the middle of the tail
+  if(!pts || pts.length<2) return null;
+  const tail=pts.slice(Math.floor(pts.length/3)); const [xa,ya]=tail[Math.floor(tail.length/2)];
+  const x0=pts[0][0], x1=pts[pts.length-1][0]*1.4; const out=[];
+  for(let i=0;i<=24;i++){ const x=x0*Math.pow(x1/x0,i/24); out.push([x, ya*Math.pow(x/xa,-gamma)]); }
+  return {kind:'line', pts:out, dash:[5,4], color, label, width:1.6};
+}
+
+/* ============ model catalogue ============ */
+const logP = v => v<=0 ? 0 : Math.pow(10,-3+v/100);
+const fmtP = p => p===0?'0': p<0.01? p.toPrecision(2) : p.toFixed(p<0.1?3:2);
+const MODELS=[
+{ id:'gnm', group:'Random graphs', label:'Erdős–Rényi G(N, L)', title:'Erdős–Rényi random graph G(N, L)', ko:'Random network, version I',
+  cite:'P. Erdős & A. Rényi, Publicationes Mathematicae 6, 290 (1959)',
+  lede:'The “egalitarian”, maximum‑entropy approach: assume we know nothing about a network except its number of nodes and links. Every graph with exactly N nodes and L links is equally likely.',
+  params:[{k:'N',label:'Nodes N',min:20,max:800,step:10,v:200},{k:'L',label:'Links L',min:0,max:1600,step:5,v:200}],
+  gen:P=>gnm(P.N,P.L), theory:'poisson',
+  build:`<ol class="steps"><li>Start with <i>N</i> isolated nodes.</li><li>Pick a pair of nodes uniformly at random among pairs that are not yet linked.</li><li>Link them, and repeat until there are <i>L</i> links.</li></ol><div class="eq">⟨<i>k</i>⟩ = 2<i>L</i> / <i>N</i></div>`,
+  notice:`<p>Press <b>Play build</b> and watch the largest connected component (full color; everything else is faded). While ⟨<i>k</i>⟩ &lt; 1 it stays tiny. Around ⟨<i>k</i>⟩ ≈ 1 a <b>giant component</b> suddenly appears: the percolation transition, a continuous phase transition in physics terms.</p><p>For N = 200, the transition sits near L = 100.</p>`,
+  exp:'percolation', code:`import networkx as nx\nG = nx.gnm_random_graph(N, L)   # Erdős–Rényi`},
+{ id:'gnp', group:'Random graphs', label:'Gilbert G(N, p)', title:'Gilbert’s random graph G(N, p)', ko:'Random network, version II',
+  cite:'E. N. Gilbert, Ann. Math. Stat. 30, 1141 (1959)',
+  lede:'Same egalitarian idea, but instead of fixing the number of links, every pair of nodes is linked independently with the same probability p. The number of links now fluctuates around p·N(N−1)/2.',
+  params:[{k:'N',label:'Nodes N',min:20,max:800,step:10,v:200},{k:'p',label:'Link probability p',min:0,max:0.05,step:0.0005,v:0.006,f:x=>x.toFixed(4)}],
+  gen:P=>gnp(P.N,P.p), theory:'poisson',
+  build:`<ol class="steps"><li>Start with <i>N</i> isolated nodes.</li><li>For each of the <i>N</i>(<i>N</i>−1)/2 pairs, flip a biased coin and link the pair with probability <i>p</i>.</li></ol>
+  <div class="eq">⟨<i>k</i>⟩ = <i>p</i>(<i>N</i>−1), &nbsp; <i>P</i>(<i>k</i>) = C(<i>N</i>−1, <i>k</i>) <i>p</i><sup><i>k</i></sup>(1−<i>p</i>)<sup><i>N</i>−1−<i>k</i></sup> ≈ e<sup>−⟨<i>k</i>⟩</sup>⟨<i>k</i>⟩<sup><i>k</i></sup>/<i>k</i>!</div>
+  <div class="eq"><i>C</i>(<i>i</i>) = <i>p</i> for every node, so ⟨<i>C</i>⟩ = <i>p</i></div>`,
+  notice:`<p>The degree distribution follows the Poisson curve (dashed): every node looks alike and there are no hubs. Switch to log–log to see how fast it falls off.</p><p>For sparse graphs <i>p</i> ≪ 1, so <i>C</i> ≪ 1. Many real networks have far larger clustering and far broader degree distributions than this, so the random model does not describe them well.</p>`,
+  exp:'percolation', code:`import networkx as nx\nG = nx.gnp_random_graph(N, p)   # Gilbert`},
+{ id:'ws', group:'Small worlds', label:'Watts–Strogatz', title:'Watts–Strogatz small‑world model', ko:'',
+  cite:'D. J. Watts & S. H. Strogatz, Nature 393, 440 (1998)',
+  lede:'Mimics the “small‑world” property: small average shortest‑path lengths together with large clustering. Start from an ordered ring lattice and add a little randomness by rewiring.',
+  params:[{k:'N',label:'Nodes N',min:10,max:400,step:2,v:40},{k:'k',label:'Neighbors k (even)',min:2,max:12,step:2,v:4},{k:'pv',label:'Rewiring probability p',min:0,max:300,step:1,v:200,map:logP,f:fmtP}],
+  gen:P=>ws(P.N,P.k,logP(P.pv)), layout:'ring',
+  build:`<ol class="steps"><li>Place <i>N</i> nodes on a ring and link each to its <i>k</i> nearest neighbors (<i>k</i>/2 on each side).</li><li>For each edge, with probability <i>p</i>, keep one endpoint and rewire the other to a randomly chosen node (no self‑loops or duplicates).</li></ol>
+  <div class="eq"><i>p</i> = 0: lattice, <i>C</i> = 3(<i>k</i>−2) / 4(<i>k</i>−1); &nbsp; <i>p</i> = 1: close to a random graph</div>`,
+  notice:`<p>Rewired links (shortcuts) are drawn in orange. A handful of shortcuts already slashes the average path length ℓ while the clustering <i>C</i> barely moves. Run the experiment below to reproduce the famous figure from the 1998 paper.</p>`,
+  exp:'smallworld', code:`import networkx as nx\nG = nx.watts_strogatz_graph(N, k, p)   # small-world\npos = nx.circular_layout(G)\nnx.draw(G, pos)`},
+{ id:'nw', group:'Small worlds', label:'Newman–Watts', title:'Newman–Watts small‑world model', ko:'Edge‑addition version of the small‑world model',
+  cite:'M. E. J. Newman & D. J. Watts, Phys. Lett. A 263, 341 (1999)',
+  lede:'The variant that adds shortcuts instead of rewiring. The original lattice is never destroyed, so the network can never break apart.',
+  params:[{k:'N',label:'Nodes N',min:10,max:400,step:2,v:40},{k:'k',label:'Neighbors k (even)',min:2,max:12,step:2,v:4},{k:'pv',label:'Shortcut probability p',min:0,max:300,step:1,v:170,map:logP,f:fmtP}],
+  gen:P=>nw(P.N,P.k,logP(P.pv)), layout:'ring',
+  build:`<ol class="steps"><li>Build the same ring lattice: each node linked to its <i>k</i> nearest neighbors.</li><li>For each lattice edge (<i>u</i>, <i>v</i>), with probability <i>p</i> add a <em>new</em> edge from <i>u</i> to a random node <i>w</i>.</li></ol>
+  <div class="eq">⟨<i>k</i>⟩ ≈ <i>k</i>(1 + <i>p</i>)</div>`,
+  notice:`<p>Compare with Watts–Strogatz at the same p: here ⟨k⟩ grows with p and the giant component always contains every node. The small‑world effect is the same. Son, Choi & Lee, J. Korean Phys. Soc. 83, 879 (2023) discuss some nontrivial facts about this model and its implementations.</p>`,
+  exp:'smallworld', code:`import networkx as nx\nG = nx.newman_watts_strogatz_graph(N, k, p)`},
+{ id:'config', group:'Fixed degree sequence', label:'Configuration model', title:'Configuration model', ko:'',
+  cite:'Bender & Canfield (1978); Bollobás (1980); Molloy & Reed (1995)',
+  lede:'Neither ER nor WS produce hubs. The configuration model is “assembled” from any given degree sequence, so it can produce any degree distribution, including a power law. Everything else is randomized.',
+  params:[{k:'N',label:'Nodes N',min:20,max:800,step:10,v:200},
+    {k:'dist',type:'select',label:'Degree sequence drawn from',opts:[['power','Power law'],['poisson','Poisson'],['regular','Regular']],v:'power'},
+    {k:'gamma',label:'Exponent γ',min:2.0,max:3.6,step:0.05,v:2.3,f:x=>x.toFixed(2),show:P=>P.dist==='power'},
+    {k:'kmin',label:'Minimum degree',min:1,max:4,step:1,v:1,show:P=>P.dist==='power'},
+    {k:'kav',label:'Degree ⟨k⟩',min:1,max:8,step:0.5,v:3,f:x=>x.toFixed(1),show:P=>P.dist!=='power'},
+    {k:'erase',type:'check',label:'Erase self‑loops and multi‑edges',v:false}],
+  gen:P=>configModel(P.N,P.dist,P.kav,P.gamma,P.kmin,P.erase), theory:'target',
+  build:`<ol class="steps"><li>Give each node <i>i</i> exactly <i>k<sub>i</sub></i> “stubs”: dangling half‑links.</li><li>Pick a pair of stubs at random.</li><li>Join them into a link, and repeat until no stubs are left.</li></ol>
+  <div class="eq">Necessary: Σ<sub><i>i</i></sub> <i>k<sub>i</sub></i> = 2<i>L</i> must be even</div>
+  <p class="note" style="margin-top:0">Necessary and sufficient for a <em>simple</em> graph (graphicality): the Erdős–Gallai theorem, Σ<sub><i>i</i>≤<i>k</i></sub> <i>d<sub>i</sub></i> ≤ <i>k</i>(<i>k</i>−1) + Σ<sub><i>i</i>&gt;<i>k</i></sub> min(<i>d<sub>i</sub></i>, <i>k</i>) for all <i>k</i>.</p>`,
+  notice:`<p>Self‑loops and multi‑edges (red) are possible, and they pile up on the hubs when γ is small. Tick “Erase” and watch the measured distribution (dots) fall below the target sequence (dashed) at large <i>k</i>: “unwritten” restrictions caused by insisting on a simple graph.</p><p>Its purpose is to test the pure effect of the degree sequence. But it explains nothing about <em>where</em> a power law comes from. We need a mechanistic explanation.</p>`,
+  exp:'config', code:`import networkx as nx\nseq = [3, 2, 2, 1, ...]              # sum must be even\nG = nx.configuration_model(seq)      # multigraph\nG = nx.Graph(G)                      # merge multi-edges\nG.remove_edges_from(nx.selfloop_edges(G))`},
+{ id:'ba', group:'Growth and preferential attachment', label:'Barabási–Albert', title:'Barabási–Albert scale‑free model', ko:'',
+  cite:'A.-L. Barabási & R. Albert, Science 286, 509 (1999)',
+  lede:'A mechanism that actually explains power‑law degree distributions: networks grow, and new nodes prefer to connect to nodes that are already well connected (the rich get richer).',
+  params:[{k:'N',label:'Final nodes N',min:20,max:800,step:10,v:300},{k:'m',label:'Links per new node m',min:1,max:5,step:1,v:2},{k:'pa',type:'check',label:'Preferential attachment (untick for random attachment)',v:true}],
+  gen:P=>ba(P.N,P.m,P.pa), theory:'ba',
+  build:`<ol class="steps"><li>Start from a small fully connected core of <i>m</i>+1 nodes.</li><li>Add a new node with <i>m</i> links.</li><li>Connect each link to an existing node <i>i</i> with probability proportional to its degree.</li><li>Repeat until there are <i>N</i> nodes.</li></ol>
+  <div class="eq">Π(<i>k<sub>i</sub></i>) = <i>k<sub>i</sub></i> / Σ<sub><i>j</i></sub> <i>k<sub>j</sub></i> &nbsp; ⇒ &nbsp; <i>P</i>(<i>k</i>) ~ <i>k</i><sup>−3</sup></div>`,
+  notice:`<p>Hubs (large, red) emerge, and they are the oldest nodes. Untick preferential attachment: growth alone gives an exponential distribution with no hubs. Both ingredients are needed.</p><p>The clustering coefficient is low, much like a random graph. The models further down fix that.</p>`,
+  exp:'ba', code:`import networkx as nx\nG = nx.barabasi_albert_graph(N, m)\n\n# picking a node preferentially by hand\nimport random\nnodes   = [1, 2, 3, 4]\ndegrees = [3, 1, 2, 2]\nselected = random.choices(nodes, degrees)`},
+{ id:'gpa', group:'Growth and preferential attachment', label:'Generalized PA', title:'Generalized (non‑linear) preferential attachment', ko:'',
+  cite:'Krapivsky, Redner & Leyvraz, Phys. Rev. Lett. 85, 4629 (2000)',
+  lede:'Relax the linear rule: let the attachment probability vary as a power α of the degree. α = 1 is the BA model.',
+  params:[{k:'N',label:'Final nodes N',min:20,max:800,step:10,v:300},{k:'m',label:'Links per new node m',min:1,max:4,step:1,v:1},{k:'a',label:'Exponent α',min:0,max:3,step:0.05,v:1.5,f:x=>x.toFixed(2)}],
+  gen:P=>gpa(P.N,P.m,P.a), theory:P=>Math.abs(P.a-1)<0.03?'ba':null,
+  build:`<ol class="steps"><li>Grow the network as in the BA model.</li><li>Link new node <i>i</i> to an old node <i>j</i> with the probability below.</li></ol><div class="eq">Π<sub>α</sub>(<i>i</i> ↔ <i>j</i>) = <i>k<sub>j</sub></i><sup>α</sup> / Σ<sub><i>l</i></sub> <i>k<sub>l</sub></i><sup>α</sup></div>`,
+  notice:`<p><b>α &lt; 1, sublinear:</b> high‑degree nodes have a smaller advantage. The distribution loses its heavy tail and the hubs disappear.</p><p><b>α &gt; 1, superlinear:</b> one node ends up connected to a large fraction of all nodes. For α &gt; 2 it is a winner‑takes‑all star: one node linked to almost everyone.</p>`,
+  exp:'gpa', code:`# textbook-style growth step\nweights = [G.degree(j)**alpha for j in G]\ntargets = set()\nwhile len(targets) < m:\n    targets.add(random.choices(list(G), weights)[0])\nG.add_edges_from((new, t) for t in targets)`},
+{ id:'attract', group:'Growth and preferential attachment', label:'Attractiveness', title:'Attractiveness model', ko:'',
+  cite:'Dorogovtsev, Mendes & Samukhin, Phys. Rev. Lett. 85, 4633 (2000)',
+  lede:'Every node gets a constant “attractiveness” A on top of its degree, so even poorly connected nodes have some appeal. A = 0 is the BA model.',
+  params:[{k:'N',label:'Final nodes N',min:20,max:800,step:10,v:300},{k:'m',label:'Links per new node m',min:1,max:4,step:1,v:2},{k:'A',label:'Attractiveness A',min:0,max:30,step:0.5,v:4,f:x=>x.toFixed(1)}],
+  gen:P=>attract(P.N,P.m,P.A), theory:'attract',
+  build:`<ol class="steps"><li>Grow the network as in the BA model.</li><li>Link new node <i>i</i> to old node <i>j</i> with the probability below.</li></ol><div class="eq">Π(<i>i</i> ↔ <i>j</i>) = (<i>A</i> + <i>k<sub>j</sub></i>) / Σ<sub><i>l</i></sub> (<i>A</i> + <i>k<sub>l</sub></i>) &nbsp; ⇒ &nbsp; γ = 3 + <i>A</i>/<i>m</i></div>`,
+  notice:`<p>The tail is still a power law, but steeper as A grows: hubs become rarer and smaller. Since A is the same for everyone, the hubs are still the oldest nodes. Hover the biggest nodes: they have low labels (early arrivals).</p>`,
+  exp:'attract', code:`weights = [A + G.degree(j) for j in G]\ntarget  = random.choices(list(G), weights)[0]`},
+{ id:'fitness', group:'Growth and preferential attachment', label:'Fitness', title:'Fitness model', ko:'',
+  cite:'G. Bianconi & A.-L. Barabási, Europhys. Lett. 54, 436 (2001)',
+  lede:'Each node carries its own fixed appeal, a fitness η drawn from a distribution ρ(η). Late arrivals with high fitness can overtake older nodes.',
+  params:[{k:'N',label:'Final nodes N',min:20,max:800,step:10,v:300},{k:'m',label:'Links per new node m',min:1,max:4,step:1,v:2},{k:'colorFit',type:'check',label:'Color nodes by fitness η instead of degree',v:false,live:true}],
+  gen:P=>fitness(P.N,P.m), theory:null,
+  build:`<ol class="steps"><li>Each new node <i>i</i> receives a fitness η<sub><i>i</i></sub> &gt; 0, here uniform on (0, 1).</li><li>Each of its <i>m</i> links goes to old node <i>j</i> with the probability below.</li></ol><div class="eq">Π(<i>i</i> ↔ <i>j</i>) = η<sub><i>j</i></sub> <i>k<sub>j</sub></i> / Σ<sub><i>l</i></sub> η<sub><i>l</i></sub> <i>k<sub>l</sub></i></div>`,
+  notice:`<p>If every node had the same fitness, η would cancel and we would be back to BA. With a uniform ρ(η), which has finite support, the degree distribution still has a heavy tail. With infinite support a winner‑takes‑all condensation can occur.</p><p>Hover the hubs: they are fit nodes, not necessarily old ones.</p>`,
+  exp:'fitness', code:`eta = {}                         # node -> fitness\neta[new] = random.random()\nweights = [eta[j] * G.degree(j) for j in G]\ntarget  = random.choices(list(G), weights)[0]`},
+{ id:'hk', group:'Adding triangles', label:'Holme–Kim', title:'Holme–Kim model (BA + triadic closure)', ko:'',
+  cite:'P. Holme & B. J. Kim, Phys. Rev. E 65, 026107 (2002)',
+  lede:'BA networks have very few triangles. Holme and Kim add a “triad formation” step that closes triangles, giving a power‑law degree distribution with tunable clustering.',
+  params:[{k:'N',label:'Final nodes N',min:20,max:800,step:10,v:300},{k:'m',label:'Links per new node m',min:1,max:5,step:1,v:3},{k:'pt',label:'Triad formation probability p',min:0,max:1,step:0.05,v:0.8,f:x=>x.toFixed(2)}],
+  gen:P=>holmeKim(P.N,P.m,P.pt), theory:'ba',
+  build:`<ol class="steps"><li>Add a new node; its first link goes to node <i>u</i> by preferential attachment.</li><li>For each remaining link: with probability <i>p</i>, link to a random neighbor <i>w</i> of <i>u</i>, closing the triangle (<i>new</i>, <i>u</i>, <i>w</i>).</li><li>Otherwise, pick another node by preferential attachment.</li></ol>`,
+  notice:`<p>The degree tail stays close to <i>k</i><sup>−3</sup>, because a neighbor of a node is itself reached with probability roughly proportional to its degree. But <i>C</i> is now large and tunable with <i>p</i>. Try <i>p</i> = 0 and <i>p</i> = 1 and compare <i>C</i>.</p>`,
+  exp:'hk', code:`import networkx as nx\nG = nx.powerlaw_cluster_graph(N, m, p)   # Holme–Kim`},
+{ id:'rw', group:'Adding triangles', label:'Random walk model', title:'Random walk model', ko:'',
+  cite:'Vázquez, Phys. Rev. E 67, 056104 (2003); textbook: Menczer, Fortunato & Davis, A First Course in Network Science',
+  lede:'Preferential attachment without anyone knowing the degrees: pick a random node, then walk to its neighbors. Triangles come for free.',
+  params:[{k:'N',label:'Final nodes N',min:20,max:800,step:10,v:300},{k:'m',label:'Links per new node m',min:2,max:5,step:1,v:3},{k:'p',label:'Triadic closure probability p',min:0,max:1,step:0.05,v:0.8,f:x=>x.toFixed(2)}],
+  gen:P=>randomWalk(P.N,P.m,P.p), theory:null,
+  build:`<ol class="steps"><li>A new node <i>i</i> is added with <i>m</i> &gt; 1 new links.</li><li>The first link goes to an old node <i>j</i> chosen at random.</li><li>Each other link goes to a random neighbor of <i>j</i> with probability <i>p</i>, or to another random node with probability 1−<i>p</i>.</li></ol>`,
+  notice:`<p>With <i>p</i> = 0 every link is random (no hubs, no triangles). As <i>p</i> grows, more links close triangles and the distribution broadens: reaching a node through a neighbor is an implicit form of preferential attachment. At large <i>p</i> community‑like structure appears.</p><p>The closely related <b>copy model</b> copies a random target’s links, as in gene duplication or citation copying, and also makes hubs larger (Goh, Kahng & Kim, J. Korean Phys. Soc. 46, 551 (2005)).</p>`,
+  exp:'rw', code:`j = random.choice(old_nodes)\nG.add_edge(new, j)\nfor _ in range(m - 1):\n    if random.random() < p and candidates(j):\n        G.add_edge(new, random.choice(candidates(j)))\n    else:\n        G.add_edge(new, random.choice(others))`},
+{ id:'rank', group:'Other mechanisms', label:'Rank model', title:'Rank model', ko:'',
+  cite:'S. Fortunato, A. Flammini & F. Menczer, Phys. Rev. Lett. 96, 218701 (2006)',
+  lede:'Only relative standing matters. Nodes are ranked by some property, and the top‑ranked node has the best chance of receiving a link; the actual values never enter.',
+  params:[{k:'N',label:'Final nodes N',min:20,max:800,step:10,v:300},{k:'m',label:'Links per new node m',min:1,max:4,step:1,v:2},{k:'a',label:'Exponent α',min:0.3,max:3,step:0.05,v:1.0,f:x=>x.toFixed(2)},
+    {k:'prop',type:'select',label:'Rank nodes by',opts:[['degree','Degree'],['age','Age']],v:'degree'}],
+  gen:P=>rankModel(P.N,P.m,P.a,P.prop), theory:'rank',
+  build:`<ol class="steps"><li>Rank all nodes by the chosen property: <i>R</i> = 1, 2, 3, … (node <i>i</i> receives rank <i>R<sub>i</sub></i>).</li><li>Add a new node <i>i</i> with <i>m</i> links.</li><li>Link it to old node <i>j</i> with the probability below; re‑rank if needed.</li></ol><div class="eq">Π(<i>i</i> ↔ <i>j</i>) = <i>R<sub>j</sub></i><sup>−α</sup> / Σ<sub><i>l</i></sub> <i>R<sub>l</sub></i><sup>−α</sup> &nbsp; ⇒ &nbsp; γ = 1 + 1/α</div>`,
+  notice:`<p>A power law appears regardless of the ranking property, and its exponent is set purely by α. Small α gives a steep tail; large α concentrates links on the top few ranks.</p>`,
+  exp:'rank', code:`ranked = sorted(G, key=G.degree, reverse=True)\nweights = [(r + 1) ** -alpha for r in range(len(ranked))]\ntarget  = random.choices(ranked, weights)[0]`},
+{ id:'static', group:'Other mechanisms', label:'Static model', title:'Static model', ko:'',
+  cite:'K.-I. Goh, B. Kahng & D. Kim, Phys. Rev. Lett. 87, 278701 (2001)',
+  lede:'No growth at all. All N nodes exist from the beginning, each with an intrinsic weight; links are placed between pairs chosen according to those weights.',
+  params:[{k:'N',label:'Nodes N',min:50,max:800,step:10,v:300},{k:'m',label:'Links per node m',min:1,max:4,step:1,v:2},{k:'a',label:'Control parameter α',min:0.1,max:0.95,step:0.01,v:0.5,f:x=>x.toFixed(2)}],
+  gen:P=>staticModel(P.N,P.m,P.a), theory:'static',
+  build:`<ol class="steps"><li>Give node <i>i</i> = 1, …, <i>N</i> the weight <i>p<sub>i</sub></i> = <i>i</i><sup>−α</sup>, with 0 ≤ α &lt; 1.</li><li>Pick two different nodes, each with probability proportional to its weight.</li><li>Link them unless they are already linked. Repeat until there are <i>mN</i> links.</li></ol>
+  <div class="eq"><i>k<sub>i</sub></i> / Σ<sub><i>j</i></sub> <i>k<sub>j</sub></i> = (1−α) <i>i</i><sup>−α</sup> / <i>N</i><sup>1−α</sup> &nbsp; ⇒ &nbsp; <i>P</i>(<i>k</i>) ~ <i>k</i><sup>−γ</sup>, &nbsp; γ = (1 + α)/α</div>`,
+  notice:`<p>You can dial in any degree exponent γ &gt; 2 by tuning α. α = 0.5 gives γ = 3, like BA, but without any growth or preferential attachment. Press Play: links appear all over the network at once rather than node by node.</p>`,
+  exp:'static', code:`w = [(i + 1) ** -alpha for i in range(N)]\nwhile G.number_of_edges() < m * N:\n    u, v = random.choices(range(N), w, k=2)\n    if u != v:\n        G.add_edge(u, v)`},
+];
+
+/* ============ experiments ============ */
+const EXPS={
+  percolation:{title:'Experiment: the percolation transition', desc:'Adds links one by one to a 2,000‑node random graph and tracks the fraction of nodes in the largest component, compared with the N → ∞ prediction S = 1 − e<sup>−⟨k⟩S</sup>.',
+    run(){ const N=2000, Lmax=4*N/2; const par=new Int32Array(N).map((_,i)=>i), sz=new Int32Array(N).fill(1);
+      const f=x=>{ while(par[x]!==x){ par[x]=par[par[x]]; x=par[x]; } return x; };
+      const E=gnm(N,Lmax).edges; let big=1; const pts=[[0,1/N]];
+      E.forEach(([u,v],i)=>{ let a=f(u),b=f(v); if(a!==b){ if(sz[a]<sz[b]){const t=a;a=b;b=t;} par[b]=a; sz[a]+=sz[b]; if(sz[a]>big)big=sz[a]; } if(i%10===9) pts.push([2*(i+1)/N, big/N]); });
+      const th=[]; for(let k=0;k<=4.0001;k+=0.02){ let S=0.9; for(let it=0;it<400;it++) S=1-Math.exp(-k*S); th.push([k, k<=1?0:S]); }
+      return {xlabel:'Average degree ⟨k⟩', ylabel:'Fraction in giant component', xmin:0,xmax:4,ymin:0,ymax:1,
+        series:[{kind:'line',pts:th,color:css('--ink2'),dash:[5,4],label:'N → ∞ theory',width:1.6},{kind:'line',pts,color:css('--node'),label:'Simulation, N = 2000'}]}; }},
+  smallworld:{title:'Experiment: the small‑world window', desc:'For N = 500 and k = 10, sweeps p from 10⁻⁴ to 1 and plots the path length ℓ(p) and clustering C(p), each relative to the ring lattice at p = 0.',
+    run(){ const N=500,k=10, add=state.model.id==='nw'; const ps=[]; for(let e=-4;e<=0.001;e+=0.25) ps.push(Math.pow(10,e));
+      const base=analyze(ws(N,k,0)); const Lp=[],Cp=[];
+      for(const p of ps){ let l=0,c=0; for(let r=0;r<2;r++){ const a=analyze(add?nw(N,k,p):ws(N,k,p)); l+=a.ell; c+=a.C; } Lp.push([p,l/2/base.ell]); Cp.push([p,c/2/base.C]); }
+      return {logx:true, xlabel:add?'Shortcut probability p':'Rewiring probability p', ylabel:'Relative to p = 0', ymin:0, ymax:1.05,
+        series:[{kind:'line',pts:Lp,color:css('--node'),label:'ℓ(p) / ℓ(0)'},{kind:'dot',pts:Lp,color:css('--node')},{kind:'line',pts:Cp,color:css('--short'),label:'C(p) / C(0)'},{kind:'dot',pts:Cp,color:css('--short'),hollow:true}]}; }},
+  config:{title:'Experiment: how often does stub matching fail?', desc:'For 1,000 nodes with a power‑law degree sequence (minimum degree 2), measures what share of links are self‑loops or multi‑edges as the exponent γ changes.',
+    run(){ const pts1=[],pts2=[]; for(let g=2.0; g<=3.6001; g+=0.1){ let s=0,mu=0,t=0; for(let r=0;r<4;r++){ const c=configModel(1000,'power',0,g,2,false); s+=c.self; mu+=c.multi; t+=c.total; } pts1.push([g,100*s/t]); pts2.push([g,100*mu/t]); }
+      return {xlabel:'Degree exponent γ', ylabel:'% of links', ymin:0, series:[{kind:'line',pts:pts2,color:css('--hub'),label:'Multi‑edges'},{kind:'line',pts:pts1,color:css('--short'),label:'Self‑loops',dash:[6,3]}]}; }},
+  ba:{title:'Experiment: is growth enough?', desc:'Two networks of 5,000 nodes with m = 3: one grown with preferential attachment, one with random attachment. Log‑binned P(k) on log–log axes.',
+    run(){ const a=analyze(ba(5000,3,true)), b=analyze(ba(5000,3,false)); const pa=degDist(a.deg,true), rn=degDist(b.deg,true);
+      return {logx:true,logy:true,xlabel:'Degree k',ylabel:'P(k)',series:[{kind:'dot',pts:pa,color:css('--hub'),label:'Preferential attachment'},{kind:'dot',pts:rn,color:css('--node'),label:'Random attachment',hollow:true},guide(3,pa,'k⁻³',css('--ink2'))]}; }},
+  gpa:{title:'Experiment: when does the winner take all?', desc:'Grows 600‑node networks with m = 1 for α from 0 to 3 and plots the fraction of all nodes linked to the single biggest hub.',
+    run(){ const pts=[]; for(let a=0;a<=3.0001;a+=0.25){ let s=0; for(let r=0;r<3;r++){ const g=gpa(600,1,a); s+=Math.max(...g.ctx.deg)/600; } pts.push([a,s/3]); }
+      return {xlabel:'Exponent α',ylabel:'Biggest hub degree / N',ymin:0,ymax:1,series:[{kind:'line',pts,color:css('--hub')},{kind:'dot',pts,color:css('--hub')}]}; }},
+  attract:{title:'Experiment: attractiveness steepens the tail', desc:'Three 3,000‑node networks with m = 2 and A = 0, 4, 12, against the predicted slopes γ = 3 + A/m.',
+    run(){ const cols=[css('--hub'),css('--short'),css('--node')]; const ser=[];
+      [0,4,12].forEach((A,i)=>{ const d=degDist(analyze(attract(3000,2,A)).deg,true); ser.push({kind:'dot',pts:d,color:cols[i],label:`A = ${A} (γ = ${3+A/2})`}); ser.push(guide(3+A/2,d,null,cols[i])); });
+      return {logx:true,logy:true,xlabel:'Degree k',ylabel:'P(k)',ymin:1e-5,series:ser}; }},
+  fitness:{title:'Experiment: fitness beats age', desc:'Grows a 2,000‑node fitness network (m = 2) and plots each node’s final degree against its fitness η. Color shows age: darker dots were born earlier.',
+    run(){ const g=fitness(2000,2); const d=g.ctx.deg; const old=[],mid=[],young=[];
+      for(let i=0;i<2000;i++){ const p=[g.eta[i],d[i]]; (i<200?old:i<1000?mid:young).push(p); }
+      return {logy:true,xlabel:'Fitness η',ylabel:'Final degree k',xmin:0,xmax:1,series:[{kind:'dot',pts:young,color:css('--muted'),r:2,label:'Born late'},{kind:'dot',pts:mid,color:css('--node'),r:2.2,label:'Born mid'},{kind:'dot',pts:old,color:css('--hub'),r:2.6,label:'First 200 nodes'}]}; }},
+  hk:{title:'Experiment: clustering on demand', desc:'Grows 1,000‑node Holme–Kim networks (m = 3) for p from 0 to 1 and measures the average clustering coefficient.',
+    run(){ const pts=[]; for(let p=0;p<=1.0001;p+=0.1){ let c=0; for(let r=0;r<2;r++) c+=analyze(holmeKim(1000,3,p)).C; pts.push([p,c/2]); }
+      return {xlabel:'Triad formation probability p',ylabel:'Average clustering C',ymin:0,series:[{kind:'line',pts,color:css('--node')},{kind:'dot',pts,color:css('--node')}]}; }},
+  rw:{title:'Experiment: walking makes triangles and hubs', desc:'Grows 1,500‑node random‑walk networks (m = 3) for p from 0 to 1 and tracks clustering C and the largest degree, relative to its maximum.',
+    run(){ const C=[],K=[]; for(let p=0;p<=1.0001;p+=0.1){ let c=0,k=0; for(let r=0;r<2;r++){ const a=analyze(randomWalk(1500,3,p)); c+=a.C; k+=a.kmax; } C.push([p,c/2]); K.push([p,k/2]); }
+      const mk=Math.max(...K.map(x=>x[1])); const Kn=K.map(([p,k])=>[p,k/mk]);
+      return {xlabel:'Triadic closure probability p',ylabel:'Value',ymin:0,ymax:1,series:[{kind:'line',pts:C,color:css('--node'),label:'Clustering C'},{kind:'line',pts:Kn,color:css('--hub'),label:'k_max (relative)',dash:[6,3]}]}; }},
+  rank:{title:'Experiment: the exponent comes from α', desc:'Ranks nodes by degree in three 1,000‑node networks (m = 2) with α = 0.7, 1.0 and 1.5, against the slopes γ = 1 + 1/α.',
+    run(){ const cols=[css('--node'),css('--short'),css('--hub')]; const ser=[];
+      [0.7,1.0,1.5].forEach((a,i)=>{ const d=degDist(analyze(rankModel(1000,2,a,'degree')).deg,true); ser.push({kind:'dot',pts:d,color:cols[i],label:`α = ${a} (γ ≈ ${(1+1/a).toFixed(2)})`}); ser.push(guide(1+1/a,d,null,cols[i])); });
+      return {logx:true,logy:true,xlabel:'Degree k',ylabel:'P(k)',ymin:1e-5,series:ser}; }},
+  static:{title:'Experiment: dial in the exponent', desc:'Three 4,000‑node static networks (m = 2) with α = 0.4, 0.5 and 0.8, against γ = (1+α)/α.',
+    run(){ const cols=[css('--node'),css('--short'),css('--hub')]; const ser=[];
+      [0.4,0.5,0.8].forEach((a,i)=>{ const d=degDist(analyze(staticModel(4000,2,a)).deg,true); const g=(1+a)/a; ser.push({kind:'dot',pts:d,color:cols[i],label:`α = ${a} (γ = ${g.toFixed(2)})`}); ser.push(guide(g,d,null,cols[i])); });
+      return {logx:true,logy:true,xlabel:'Degree k',ylabel:'P(k)',ymin:1e-6,series:ser}; }},
+};
+
+/* ============ state ============ */
+const state={ model:null, P:{}, mem:{}, g:null, st:null, t:0, T:0, playing:false, scale:'lin',
+  x:null,y:null,vx:null,vy:null,placed:null, alpha:1, view:{s:1,cx:0,cy:0}, hover:-1, expCache:{} };
+
+/* rail */
+(function buildRail(){
+  const box=$('#groups'); const groups=[...new Set(MODELS.map(m=>m.group))];
+  for(const g of groups){ const d=document.createElement('div'); d.className='group'; d.innerHTML=`<h2>${g}</h2><ul></ul>`; const ul=d.querySelector('ul');
+    for(const m of MODELS.filter(x=>x.group===g)){ const li=document.createElement('li'); const b=document.createElement('button'); b.className='mbtn'; b.textContent=m.label; b.dataset.id=m.id; b.onclick=()=>selectModel(m.id,true); li.appendChild(b); ul.appendChild(li); }
+    box.appendChild(d); }
+})();
+
+function selectModel(id, play){
+  const m=MODELS.find(x=>x.id===id); state.model=m;
+  document.querySelectorAll('.mbtn').forEach(b=>b.setAttribute('aria-current', b.dataset.id===id?'true':'false'));
+  if(!state.mem[id]){ const P={}; m.params.forEach(p=>P[p.k]=p.v); state.mem[id]=P; }
+  state.P=state.mem[id];
+  $('#pTitle').innerHTML=`<mark>${m.title}</mark>`; $('#pKo').textContent=m.ko; $('#pKo').hidden=!m.ko; $('#pCite').textContent=m.cite; $('#pLede').textContent=m.lede;
+  $('#pBuild').innerHTML=m.build; $('#pNotice').innerHTML=m.notice; $('#pCode').textContent=m.code; $('#hudTitle').textContent=m.label;
+  const ex=EXPS[m.exp]; $('#expTitle').textContent=ex.title; $('#expDesc').innerHTML=ex.desc; $('#expStatus').textContent='';
+  const cached=state.expCache[m.exp+(m.id==='nw'?'nw':'')]; if(cached) plot($('#expChart'),cached); else plot($('#expChart'),{series:[],empty:'Press “Run experiment” to generate this chart.'});
+  if(m.theory==='poisson' || m.layout==='ring') setScale('lin',false); else setScale('log',false);
+  renderParams(); rebuild(play);
+  if(window.innerWidth>920) $('#panel').scrollTop=0;
+}
+
+function renderParams(){
+  const box=$('#params'); box.innerHTML=''; const m=state.model, P=state.P;
+  for(const p of m.params){
+    if(p.show && !p.show(P)) continue;
+    if(p.type==='check'){ const l=document.createElement('label'); l.className='check'; l.innerHTML=`<input type="checkbox" ${P[p.k]?'checked':''}> ${p.label}`;
+      l.querySelector('input').onchange=e=>{ P[p.k]=e.target.checked; if(p.live){ draw(); } else schedule(); }; box.appendChild(l); continue; }
+    const row=document.createElement('div'); row.className='param';
+    if(p.type==='select'){ row.innerHTML=`<label>${p.label}</label><span></span><div class="seg" role="group"></div>`; const seg=row.querySelector('.seg');
+      for(const [v,t] of p.opts){ const b=document.createElement('button'); b.textContent=t; b.setAttribute('aria-pressed',P[p.k]===v); b.onclick=()=>{ P[p.k]=v; renderParams(); schedule(); }; seg.appendChild(b); }
+      box.appendChild(row); continue; }
+    const id='p_'+p.k; const f=p.f||(x=>String(x));
+    row.innerHTML=`<label for="${id}">${p.label}</label><output id="o_${p.k}">${f(p.map?p.map(P[p.k]):P[p.k])}</output><input type="range" id="${id}" min="${p.min}" max="${p.max}" step="${p.step}" value="${P[p.k]}">`;
+    row.querySelector('input').oninput=e=>{ P[p.k]=+e.target.value; row.querySelector('output').textContent=f(p.map?p.map(P[p.k]):P[p.k]); schedule(); };
+    box.appendChild(row);
+  }
+}
+let timer=null; function schedule(){ clearTimeout(timer); timer=setTimeout(()=>rebuild(false),120); }
+
+function rebuild(play){
+  const g=state.model.gen(state.P); state.g=g; state.T=g.edges.length; state.st=analyze(g);
+  const n=g.n; state.x=new Float64Array(n); state.y=new Float64Array(n); state.vx=new Float64Array(n); state.vy=new Float64Array(n); state.placed=new Uint8Array(n);
+  state.ring = state.model.layout==='ring';
+  // prepare ring-shortcut and multi-edge flags
+  const flags=new Uint8Array(state.T), mult=new Uint16Array(state.T); const seen=new Map();
+  g.edges.forEach(([u,v],i)=>{ if(u===v){flags[i]=2; return;} const k=KEY(u,v); const c=seen.get(k)||0; mult[i]=c; if(c>0) flags[i]=2; seen.set(k,c+1);
+    if(state.ring){ const d=Math.abs(u-v), dm=Math.min(d,n-d); if(dm>(g.k>>1)) flags[i]=1; } });
+  state.flags=flags; state.mult=mult;
+  const sc=$('#scrub'); sc.max=state.T; 
+  if(play && state.T>0){ state.t=0; state.playing=true; $('#play').textContent='Pause'; }
+  else { state.t=state.T; state.playing=false; $('#play').textContent='Play build'; placeAll(); }
+  sc.value=state.t; state.alpha=1; state.firstFrame=true; state.hover=-1; $('#tip').style.display='none';
+  renderStats(); renderDist(); renderLegend();
+}
+function placeNode(i){
+  const g=state.g, n=g.n;
+  if(state.ring){ const a=2*Math.PI*i/n-Math.PI/2; state.x[i]=Math.cos(a)*100; state.y[i]=Math.sin(a)*100; state.placed[i]=1; return; }
+  let anchor=-1;
+  if(g.birth && g.birth[i]>0 && g.birth[i]<g.edges.length){ const e=g.edges[g.birth[i]]; anchor=e[0]===i?e[1]:e[0]; if(!state.placed[anchor]) anchor=-1; }
+  if(anchor>=0){ const a=rnd()*7; state.x[i]=state.x[anchor]+Math.cos(a)*12; state.y[i]=state.y[anchor]+Math.sin(a)*12; }
+  else { const R=Math.sqrt(n)*14, a=rnd()*7, r=R*Math.sqrt(rnd()); state.x[i]=Math.cos(a)*r; state.y[i]=Math.sin(a)*r; }
+  state.vx[i]=state.vy[i]=0; state.placed[i]=1;
+}
+function placeAll(){ for(let i=0;i<state.g.n;i++) placeNode(i); if(!state.ring){ const it=state.g.n>500?120:220; for(let k=0;k<it;k++) tick(1, true); } }
+function visibleNode(i){ const b=state.g.birth; return !b || b[i]<=state.t; }
+
+/* stats */
+function renderStats(){
+  const st=state.st, g=state.g, m=state.model, P=state.P;
+  const items=[['N',st.n,'nodes'],['L',st.L,'links'],['⟨k⟩',fmt(st.kav),'average degree'],['k_max',st.kmax,'largest degree'],['C',fmt(st.C,3),'avg. clustering'],['ℓ',fmt(st.ell),'avg. path (giant)'],['S',fmt(st.S,3),'giant component']];
+  let note='';
+  if(m.id==='gnp'){ items.push(['p',P.p.toFixed(4),'⟨C⟩ expected']); }
+  if(m.id==='gnm'||m.id==='gnp'){ note= st.kav<1? 'Below the transition: ⟨k⟩ < 1, no giant component yet.' : 'Above the transition: ⟨k⟩ > 1, a giant component has formed.'; }
+  if(m.id==='ws'||m.id==='nw'){ const k=g.k, C0=k>2?3*(k-2)/(4*(k-1)):0; items.push(['C(0)',fmt(C0,3),'lattice clustering']); note=`Lattice path length at p = 0 is about N/2k = ${fmt(st.n/(2*k),1)}.`; }
+  if(m.id==='config'){ items.push(['loops',g.self,'self‑loops'],['multi',g.multi,'multi‑edges']); note=g.erased? `Erased ${g.self+g.multi} of ${g.total} links to make the graph simple.` : 'Self‑loops and multi‑edges are kept (drawn in red).'; }
+  if(m.id==='static') items.push(['γ',fmt(g.gamma),'predicted exponent']);
+  if(m.id==='attract') items.push(['γ',fmt(3+P.A/P.m),'predicted exponent']);
+  if(m.id==='rank') items.push(['γ',fmt(1+1/P.a),'predicted exponent']);
+  if(m.id==='ba') note=P.pa? 'Hubs are the oldest nodes: hover the largest ones.' : 'Random attachment: growth without preference, no hubs.';
+  $('#stats').innerHTML=items.map(([a,b,c])=>`<div class="stat"><b>${b}</b><small>${a}, ${c}</small></div>`).join('');
+  $('#statNote').textContent=note;
+}
+function renderDist(){
+  const st=state.st, m=state.model, P=state.P, g=state.g, log=state.scale==='log';
+  const pts=degDist(st.deg,log); const ser=[{kind:'dot',pts,color:css('--node'),label:'Measured'}];
+  let th=typeof m.theory==='function'? m.theory(P) : m.theory;
+  if(m.id==='ba' && !P.pa) th=null;
+  if(th==='poisson'){ const pp=poissonPts(st.kav, st.kmax+4); ser.push({kind:'line',pts: log? pp.filter(p=>p[0]>0):pp,color:css('--hub'),dash:[5,4],label:'Poisson',width:1.6}); }
+  if(th==='ba'){ const mm=P.m; const pp=[]; for(let k=mm;k<=Math.max(st.kmax,mm+2)*1.3;k=Math.max(k+1,Math.round(k*1.1))) pp.push([k,2*mm*(mm+1)/(k*(k+1)*(k+2))]); ser.push({kind:'line',pts:pp,color:css('--hub'),dash:[5,4],label:'BA theory ~k⁻³',width:1.6}); }
+  if(th==='target'){ ser.push({kind:'line',pts:degDist(Int32Array.from(g.target),log),color:css('--hub'),dash:[5,4],label:'Target sequence',width:1.6}); }
+  const gm = th==='static'? g.gamma : th==='attract'? 3+P.A/P.m : th==='rank'? 1+1/P.a : null;
+  if(gm && log){ const gg=guide(gm, pts, `slope −${gm.toFixed(2)}`, css('--hub')); if(gg) ser.push(gg); }
+  plot($('#dist'),{logx:log,logy:log,xlabel:'Degree k',ylabel:'P(k)',series:ser});
+}
+function setScale(s,redraw=true){ state.scale=s; document.querySelectorAll('#scaleSeg button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.s===s)); if(redraw) renderDist(); }
+document.querySelectorAll('#scaleSeg button').forEach(b=>b.onclick=()=>setScale(b.dataset.s));
+
+function renderLegend(){
+  const m=state.model; const items=[`<span>Low degree <i class="sw" style="background:var(--node)"></i></span>`,`<span>Hub <i class="sw" style="background:var(--hub)"></i></span>`];
+  if(m.layout==='ring') items.push(`<span>Shortcut <i class="sw ln" style="background:var(--short)"></i></span>`);
+  if(m.id==='config') items.push(`<span>Self‑loop or multi‑edge <i class="sw ln" style="background:var(--hub)"></i></span>`);
+  if(m.id==='fitness') items.push(`<span>Fit coloring: low η → high η</span>`);
+  items.push(`<span>Outside giant component <i class="sw" style="background:var(--muted)"></i></span>`);
+  $('#legend').innerHTML=items.join('');
+}
+
+/* ============ simulation & drawing ============ */
+const cv=$('#net'), ctx=cv.getContext('2d'); let W=0,H=0,DPR=1;
+function resize(){ DPR=window.devicePixelRatio||1; W=cv.clientWidth; H=cv.clientHeight; cv.width=W*DPR; cv.height=H*DPR; }
+new ResizeObserver(()=>{ resize(); }).observe($('#board'));
+new ResizeObserver(()=>{ if(state.st){ renderDist(); const c=state.expCache[state.model.exp+(state.model.id==='nw'?'nw':'')]; if(c) plot($('#expChart'),c);} }).observe($('#panel'));
+
+function tick(a, fast){
+  const g=state.g, n=g.n, X=state.x, Y=state.y, VX=state.vx, VY=state.vy;
+  const V=[]; for(let i=0;i<n;i++) if(visibleNode(i)){ if(!state.placed[i]) placeNode(i); V.push(i); }
+  const fx=new Float64Array(n), fy=new Float64Array(n); const REP=70, L0=16, KS=0.5, G=0.02;
+  const tE0=Math.floor(state.t), dg=new Int32Array(n); for(let e=0;e<tE0;e++){ dg[g.edges[e][0]]++; dg[g.edges[e][1]]++; }
+  for(let a1=0;a1<V.length;a1++){ const i=V[a1]; const xi=X[i], yi=Y[i];
+    for(let b1=a1+1;b1<V.length;b1++){ const j=V[b1]; let dx=xi-X[j], dy=yi-Y[j]; let d2=dx*dx+dy*dy; if(d2>90000) continue; if(d2<0.01){dx=rnd()-.5;dy=rnd()-.5;d2=0.25;}
+      const f=REP/d2; fx[i]+=dx*f; fy[i]+=dy*f; fx[j]-=dx*f; fy[j]-=dy*f; } }
+  const tE=Math.floor(state.t), E=g.edges;
+  for(let e=0;e<tE;e++){ const u=E[e][0], v=E[e][1]; if(u===v) continue; const dx=X[v]-X[u], dy=Y[v]-Y[u]; const d=Math.sqrt(dx*dx+dy*dy)||0.01; const f=KS/Math.max(1,Math.min(dg[u],dg[v]))*(d-L0)/d; fx[u]+=dx*f; fy[u]+=dy*f; fx[v]-=dx*f; fy[v]-=dy*f; }
+  for(const i of V){ fx[i]-=X[i]*G; fy[i]-=Y[i]*G; VX[i]=(VX[i]+fx[i])*0.55; VY[i]=(VY[i]+fy[i])*0.55; const sp=Math.hypot(VX[i],VY[i]); if(sp>12){VX[i]*=12/sp;VY[i]*=12/sp;} X[i]+=VX[i]*a; Y[i]+=VY[i]*a; }
+}
+function hexRGB(h){ h=h.replace('#',''); if(h.length===3)h=h.split('').map(c=>c+c).join(''); const v=parseInt(h,16); return [(v>>16)&255,(v>>8)&255,v&255]; }
+function mix(a,b,t){ return `rgb(${Math.round(a[0]+(b[0]-a[0])*t)},${Math.round(a[1]+(b[1]-a[1])*t)},${Math.round(a[2]+(b[2]-a[2])*t)})`; }
+
+function liveComponents(){ // giant component of currently visible edges
+  const g=state.g, n=g.n, par=new Int32Array(n), sz=new Int32Array(n).fill(1); for(let i=0;i<n;i++) par[i]=i;
+  const f=x=>{ while(par[x]!==x){ par[x]=par[par[x]]; x=par[x]; } return x; };
+  const tE=Math.floor(state.t), deg=new Int32Array(n);
+  for(let e=0;e<tE;e++){ const [u,v]=g.edges[e]; deg[u]++; deg[v]++; let a=f(u), b=f(v); if(a!==b){ if(sz[a]<sz[b]){const t=a;a=b;b=t;} par[b]=a; sz[a]+=sz[b]; } }
+  let best=-1,bs=0, nv=0; for(let i=0;i<n;i++){ if(!visibleNode(i)) continue; nv++; const r=f(i); if(sz[r]>bs){bs=sz[r];best=r;} }
+  const giant=new Uint8Array(n); for(let i=0;i<n;i++) giant[i]= (bs>1 && f(i)===best) ? 1:0;
+  return {giant, deg, nv, bs, tE};
+}
+
+function draw(){
+  const g=state.g; if(!g) return; const n=g.n;
+  ctx.setTransform(DPR,0,0,DPR,0,0); ctx.clearRect(0,0,W,H);
+  for(let i=0;i<n;i++) if(visibleNode(i)&&!state.placed[i]) placeNode(i);
+  const live=liveComponents(); const deg=live.deg;
+  // fit view
+  let minx=1e9,maxx=-1e9,miny=1e9,maxy=-1e9, any=false;
+  for(let i=0;i<n;i++){ if(!visibleNode(i)||!state.placed[i]) continue; any=true; const x=state.x[i],y=state.y[i]; if(x<minx)minx=x; if(x>maxx)maxx=x; if(y<miny)miny=y; if(y>maxy)maxy=y; }
+  if(!any){minx=miny=-50;maxx=maxy=50;}
+  const padT=70, padB=70, padX=30; const bw=Math.max(maxx-minx,40), bh=Math.max(maxy-miny,40);
+  const ts=Math.min((W-2*padX)/bw,(H-padT-padB)/bh); const tcx=(minx+maxx)/2, tcy=(miny+maxy)/2;
+  const v=state.view; const k=state.firstFrame?1:0.18; v.s+= (ts-v.s)*k; v.cx+=(tcx-v.cx)*k; v.cy+=(tcy-v.cy)*k; state.firstFrame=false;
+  const ox=W/2, oy=padT+(H-padT-padB)/2; const SX=x=>ox+(x-v.cx)*v.s, SY=y=>oy+(y-v.cy)*v.s;
+  const cNode=hexRGB(css('--node')), cHub=hexRGB(css('--hub')), edgeCol=css('--edge'), shortCol=css('--short'), hubCol=css('--hub'), muted=css('--muted'), hiCol=css('--hi');
+  let kmax=1; for(let i=0;i<n;i++) if(deg[i]>kmax) kmax=deg[i];
+  const sizeScale = clamp(Math.sqrt(12000/Math.max(n,30))/6, 0.55, 2.0) * clamp(v.s,0.5,1.25);
+  const rad=i=> (2.2+Math.sqrt(deg[i])*1.25)*sizeScale;
+  // edges
+  const tE=live.tE; const ea=clamp(0.75*Math.sqrt(250/Math.max(tE,1)),0.12,0.6);
+  const hov=state.hover;
+  ctx.lineWidth=1;
+  for(let e=0;e<tE;e++){
+    const [u,w]=g.edges[e]; const fl=state.flags[e]; const x1=SX(state.x[u]),y1=SY(state.y[u]);
+    const isHov = hov>=0 && (u===hov||w===hov);
+    ctx.strokeStyle = isHov? edgeCol : fl===1? shortCol : fl===2? hubCol : edgeCol;
+    ctx.globalAlpha = isHov? 0.95 : fl? 0.85 : (live.giant[u]? ea : ea*0.6);
+    ctx.lineWidth = isHov? 1.8 : fl? 1.5 : 1;
+    ctx.beginPath();
+    if(u===w){ const r=rad(u)+5; ctx.arc(x1+r*0.7,y1-r*0.7,r*0.75,0,7); }
+    else { const x2=SX(state.x[w]),y2=SY(state.y[w]); const mlt=state.mult[e];
+      if(mlt>0){ const mx=(x1+x2)/2,my=(y1+y2)/2, dx=x2-x1,dy=y2-y1, L=Math.hypot(dx,dy)||1, off=8*mlt*(mlt%2?1:-1); ctx.moveTo(x1,y1); ctx.quadraticCurveTo(mx-dy/L*off,my+dx/L*off,x2,y2); }
+      else { ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); } }
+    ctx.stroke();
+  }
+  ctx.globalAlpha=1;
+  // nodes
+  const byFit = state.model.id==='fitness' && state.P.colorFit && g.eta;
+  const order=[]; for(let i=0;i<n;i++) if(visibleNode(i)&&state.placed[i]) order.push(i);
+  order.sort((a,b)=>deg[a]-deg[b]);
+  const lk=Math.log(Math.max(kmax,24)+1);
+  for(const i of order){
+    const x=SX(state.x[i]), y=SY(state.y[i]), r=rad(i);
+    const t = byFit? g.eta[i] : Math.pow(Math.log(deg[i]+1)/lk, 2);
+    ctx.fillStyle = (live.giant[i]||byFit)? mix(cNode,cHub,t) : muted;
+    ctx.beginPath(); ctx.arc(x,y,r,0,7); ctx.fill();
+    if(i===hov){ ctx.strokeStyle=hiCol; ctx.lineWidth=3; ctx.stroke(); }
+  }
+  // HUD live readout
+  const S=live.bs/n;
+  $('#hudLive').textContent = state.t<state.T ? `Building: ${live.nv} nodes, ${tE} links, ⟨k⟩ = ${fmt(2*tE/Math.max(live.nv,1))}, giant = ${fmt(live.bs/Math.max(live.nv,1),2)}` : `${n} nodes, ${state.T} links, ⟨k⟩ = ${fmt(2*state.T/n)}`;
+  $('#tcount').textContent=`${tE} / ${state.T} links`;
+  state.SX=SX; state.SY=SY; state.rad=rad; state.liveDeg=deg;
+}
+
+let last=performance.now();
+function frame(now){
+  const dt=Math.min(50,now-last); last=now;
+  if(state.g){
+    if(state.playing){ const dur=clamp(3+state.T/180,3.5,11)*1000; state.t=Math.min(state.T, state.t+state.T*dt/dur + 0.0001); $('#scrub').value=state.t;
+      if(state.t>=state.T){ state.playing=false; $('#play').textContent='Play build'; } state.alpha=Math.max(state.alpha,0.6); }
+    if(!state.ring && state.alpha>0.02){ tick(state.alpha); state.alpha*= state.playing?1:0.985; }
+    draw();
+  }
+  requestAnimationFrame(frame);
+}
+
+/* controls */
+$('#play').onclick=()=>{
+  if(state.playing){ state.playing=false; $('#play').textContent='Resume'; return; }
+  if(state.t>=state.T){ state.t=0; state.placed.fill(0); state.firstFrame=true; }
+  state.playing=true; $('#play').textContent='Pause'; state.alpha=1;
+};
+$('#regen').onclick=()=>rebuild(false);
+$('#scrub').oninput=e=>{ state.playing=false; $('#play').textContent=state.t<state.T?'Resume':'Play build'; state.t=+e.target.value; state.alpha=Math.max(state.alpha,0.5); };
+$('#expRun').onclick=()=>{
+  const m=state.model, key=m.exp+(m.id==='nw'?'nw':''); $('#expStatus').textContent='Running…'; $('#expRun').disabled=true;
+  setTimeout(()=>{ try{ const o=EXPS[m.exp].run(); state.expCache[key]=o; plot($('#expChart'),o); $('#expStatus').textContent='Done. Run again for a fresh sample.'; }
+    catch(err){ $('#expStatus').textContent='The experiment stopped: '+err.message; } $('#expRun').disabled=false; },30);
+};
+// hover
+function pick(ev){
+  if(!state.SX) return; const r=cv.getBoundingClientRect(); const mx=ev.clientX-r.left, my=ev.clientY-r.top; let best=-1, bd=1e9;
+  for(let i=0;i<state.g.n;i++){ if(!visibleNode(i)||!state.placed[i]) continue; const dx=state.SX(state.x[i])-mx, dy=state.SY(state.y[i])-my; const d=dx*dx+dy*dy; const rr=Math.max(state.rad(i)+4,9); if(d<rr*rr && d<bd){bd=d;best=i;} }
+  state.hover=best; const tip=$('#tip');
+  if(best>=0){ let s=`Node ${best}, degree ${state.liveDeg[best]}`; if(state.g.eta) s+=`, fitness η = ${state.g.eta[best].toFixed(2)}`; tip.textContent=s; tip.style.left=state.SX(state.x[best])+'px'; tip.style.top=(state.SY(state.y[best])-state.rad(best))+'px'; tip.style.display='block'; }
+  else tip.style.display='none';
+}
+cv.addEventListener('pointermove',pick); cv.addEventListener('pointerdown',pick);
+cv.addEventListener('pointerleave',()=>{ state.hover=-1; $('#tip').style.display='none'; });
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{ renderDist(); const c=state.expCache[state.model.exp+(state.model.id==='nw'?'nw':'')]; if(c) plot($('#expChart'),c); });
+
+resize(); state.firstFrame=true; selectModel('gnm', true); requestAnimationFrame(frame);
+</script>
+</body>
+</html>
