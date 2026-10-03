@@ -260,8 +260,9 @@ function configModel(N,dist,kav,gamma,kmin,erase,seq){
   let self=0, multi=0; const C=new Map();
   for(const [u,v] of E){ if(u===v){self++; continue;} const k=KEY(u,v); const c=C.get(k)||0; if(c>0) multi++; C.set(k,c+1); }
   const total=E.length;
-  if(erase){ const seen=new Set(); E=E.filter(([u,v])=>{ if(u===v) return false; const k=KEY(u,v); if(seen.has(k)) return false; seen.add(k); return true; }); }
-  return {n:N, edges:E, target:d, self, multi, total, erased:erase, multigraph:!erase};
+  let dropped=null;
+  if(erase){ dropped=new Uint8Array(E.length); const seen=new Set(); E.forEach(([u,v],i)=>{ const k=KEY(u,v); if(u===v||seen.has(k)) dropped[i]=1; else seen.add(k); }); }
+  return {n:N, edges:E, dropped, target:d, self, multi, total, erased:erase, multigraph:!erase};
 }
 /* growth framework */
 function grow(N,m,choose,setup){
@@ -475,7 +476,7 @@ const MODELS=[
   cite:'Bender & Canfield (1978); Bollobás (1980); Molloy & Reed (1995)',
   lede:'Neither ER nor WS produce hubs. The configuration model is “assembled” from any given degree sequence, so it can produce any degree distribution, including a power law. Everything else is randomized.',
   params:[{k:'N',label:'Nodes N',min:20,max:800,step:10,v:200},
-    {k:'dist',type:'select',label:'Degree sequence drawn from',opts:[['power','Power law'],['poisson','Poisson'],['regular','Regular']],v:'power'},
+    {k:'dist',type:'select',play:true,label:'Degree sequence drawn from',opts:[['power','Power law'],['poisson','Poisson'],['regular','Regular']],v:'power'},
     {k:'gamma',label:'Exponent γ',min:2.0,max:3.6,step:0.05,v:2.3,f:x=>x.toFixed(2),show:P=>P.dist==='power'},
     {k:'kmin',label:'Minimum degree',min:1,max:4,step:1,v:1,show:P=>P.dist==='power'},
     {k:'kav',label:'Degree ⟨k⟩',min:1,max:8,step:0.5,v:3,f:x=>x.toFixed(1),show:P=>P.dist!=='power'},
@@ -484,7 +485,7 @@ const MODELS=[
   build:`<ol class="steps"><li>Give each node <i>i</i> exactly <i>k<sub>i</sub></i> “stubs”: dangling half‑links.</li><li>Pick a pair of stubs at random.</li><li>Join them into a link, and repeat until no stubs are left.</li></ol>
   <div class="eq">Necessary: Σ<sub><i>i</i></sub> <i>k<sub>i</sub></i> = 2<i>L</i> must be even</div>
   <p class="note" style="margin-top:0">Necessary and sufficient for a <em>simple</em> graph (graphicality): the Erdős–Gallai theorem, Σ<sub><i>i</i>≤<i>k</i></sub> <i>d<sub>i</sub></i> ≤ <i>k</i>(<i>k</i>−1) + Σ<sub><i>i</i>&gt;<i>k</i></sub> min(<i>d<sub>i</sub></i>, <i>k</i>) for all <i>k</i>.</p>`,
-  notice:`<p>Self‑loops and multi‑edges (red) are possible, and they pile up on the hubs when γ is small. Tick “Erase” and watch the measured distribution (dots) fall below the target sequence (dashed) at large <i>k</i>: “unwritten” restrictions caused by insisting on a simple graph.</p><p>Its purpose is to test the pure effect of the degree sequence. But it explains nothing about <em>where</em> a power law comes from. We need a mechanistic explanation.</p>`,
+  notice:`<p>Press <b>Play build</b> to watch the stubs (short dangling lines) pair up one at a time: the pair being joined is highlighted in yellow, and the count of remaining stubs is shown at the top left. Each node ends up with exactly as many links as it had stubs.</p><p>Self‑loops and multi‑edges (red) are possible, and they pile up on the hubs when γ is small. Tick “Erase” and those pairs appear dashed during the build, then disappear at the end; the measured distribution (dots) then falls below the target sequence (circles) at large <i>k</i>: “unwritten” restrictions caused by insisting on a simple graph.</p><p>Its purpose is to test the pure effect of the degree sequence. But it explains nothing about <em>where</em> a power law comes from. We need a mechanistic explanation.</p>`,
   exp:'config', code:`import networkx as nx\nseq = [3, 2, 2, 1, ...]              # sum must be even\nG = nx.configuration_model(seq)      # multigraph\nG = nx.Graph(G)                      # merge multi-edges\nG.remove_edges_from(nx.selfloop_edges(G))`},
 { id:'ba', group:'Growth and preferential attachment', label:'Barabási–Albert', title:'Barabási–Albert scale‑free model', ko:'',
   cite:'A.-L. Barabási & R. Albert, Science 286, 509 (1999)',
@@ -639,7 +640,7 @@ function renderParams(){
       l.querySelector('input').onchange=e=>{ P[p.k]=e.target.checked; if(p.live){ draw(); } else schedule(); }; box.appendChild(l); continue; }
     const row=document.createElement('div'); row.className='param';
     if(p.type==='select'){ row.innerHTML=`<label>${p.label}</label><span></span><div class="seg" role="group"></div>`; const seg=row.querySelector('.seg');
-      for(const [v,t] of p.opts){ const b=document.createElement('button'); b.textContent=t; b.setAttribute('aria-pressed',P[p.k]===v); b.onclick=()=>{ P[p.k]=v; renderParams(); schedule(); }; seg.appendChild(b); }
+      for(const [v,t] of p.opts){ const b=document.createElement('button'); b.textContent=t; b.setAttribute('aria-pressed',P[p.k]===v); b.onclick=()=>{ P[p.k]=v; renderParams(); if(p.play){ clearTimeout(timer); rebuild(true); } else schedule(); }; seg.appendChild(b); }
       box.appendChild(row); continue; }
     const id='p_'+p.k; const f=p.f||(x=>String(x));
     row.innerHTML=`<label for="${id}">${p.label}</label><output id="o_${p.k}">${f(p.map?p.map(P[p.k]):P[p.k])}</output><input type="range" id="${id}" min="${p.min}" max="${p.max}" step="${p.step}" value="${P[p.k]}">`;
@@ -650,13 +651,14 @@ function renderParams(){
 let timer=null; function schedule(){ clearTimeout(timer); timer=setTimeout(()=>rebuild(false),120); }
 
 function rebuild(play){
-  const g=state.model.gen(state.P); state.g=g; state.T=g.edges.length; state.st=analyze(g);
+  const g=state.model.gen(state.P); state.g=g; state.T=g.edges.length; state.st=analyze(g.dropped? {n:g.n, edges:g.edges.filter((_,i)=>!g.dropped[i])} : g);
   const n=g.n; state.x=new Float64Array(n); state.y=new Float64Array(n); state.vx=new Float64Array(n); state.vy=new Float64Array(n); state.placed=new Uint8Array(n);
   state.ring = state.model.layout==='ring';
   // prepare ring-shortcut and multi-edge flags
   const flags=new Uint8Array(state.T), mult=new Uint16Array(state.T); const seen=new Map();
   g.edges.forEach(([u,v],i)=>{ if(u===v){flags[i]=2; return;} const k=KEY(u,v); const c=seen.get(k)||0; mult[i]=c; if(c>0) flags[i]=2; seen.set(k,c+1);
     if(state.ring){ const d=Math.abs(u-v), dm=Math.min(d,n-d); if(dm>(g.k>>1)) flags[i]=1; } });
+  if(g.dropped) g.dropped.forEach((d,i)=>{ if(d) flags[i]=3; });
   state.flags=flags; state.mult=mult;
   const sc=$('#scrub'); sc.max=state.T; 
   if(play && state.T>0){ state.t=0; state.playing=true; $('#play').textContent='Pause'; }
@@ -674,6 +676,7 @@ function placeNode(i){
   state.vx[i]=state.vy[i]=0; state.placed[i]=1;
 }
 function placeAll(){ for(let i=0;i<state.g.n;i++) placeNode(i); if(!state.ring){ const it=state.g.n>500?120:220; for(let k=0;k<it;k++) tick(1, true); } }
+function edgeGone(e){ return state.flags && state.flags[e]===3 && state.t>=state.T; }
 function visibleNode(i){ const b=state.g.birth; return !b || b[i]<=state.t; }
 
 /* stats */
@@ -699,7 +702,7 @@ function renderDist(){
   if(m.id==='ba' && !P.pa) th=null;
   if(th==='poisson'){ const pp=poissonPts(st.kav, st.kmax+4); ser.push({kind:'line',pts: log? pp.filter(p=>p[0]>0):pp,color:css('--hub'),dash:[5,4],label:'Poisson',width:1.6}); }
   if(th==='ba'){ const mm=P.m; const pp=[]; for(let k=mm;k<=Math.max(st.kmax,mm+2)*1.3;k=Math.max(k+1,Math.round(k*1.1))) pp.push([k,2*mm*(mm+1)/(k*(k+1)*(k+2))]); ser.push({kind:'line',pts:pp,color:css('--hub'),dash:[5,4],label:'BA theory ~k⁻³',width:1.6}); }
-  if(th==='target'){ ser.push({kind:'line',pts:degDist(Int32Array.from(g.target),log),color:css('--hub'),dash:[5,4],label:'Target sequence',width:1.6}); }
+  if(th==='target'){ ser.push({kind:'dot',hollow:true,r:5,pts:degDist(Int32Array.from(g.target),log),color:css('--hub'),label:'Target sequence'}); }
   const gm = th==='static'? g.gamma : th==='attract'? 3+P.A/P.m : th==='rank'? 1+1/P.a : null;
   if(gm && log){ const gg=guide(gm, pts, `slope −${gm.toFixed(2)}`, css('--hub')); if(gg) ser.push(gg); }
   plot($('#dist'),{logx:log,logy:log,xlabel:'Degree k',ylabel:'P(k)',series:ser});
@@ -710,7 +713,7 @@ document.querySelectorAll('#scaleSeg button').forEach(b=>b.onclick=()=>setScale(
 function renderLegend(){
   const m=state.model; const items=[`<span>Low degree <i class="sw" style="background:var(--node)"></i></span>`,`<span>Hub <i class="sw" style="background:var(--hub)"></i></span>`];
   if(m.layout==='ring') items.push(`<span>Shortcut <i class="sw ln" style="background:var(--short)"></i></span>`);
-  if(m.id==='config') items.push(`<span>Self‑loop or multi‑edge <i class="sw ln" style="background:var(--hub)"></i></span>`);
+  if(m.id==='config') items.push(`<span>Unmatched stub <i class="sw ln" style="background:var(--node)"></i></span>`,`<span>Pair being joined <i class="sw ln" style="background:var(--hi)"></i></span>`,`<span>Self‑loop or multi‑edge <i class="sw ln" style="background:var(--hub)"></i></span>`);
   if(m.id==='fitness') items.push(`<span>Fit coloring: low η → high η</span>`);
   items.push(`<span>Outside giant component <i class="sw" style="background:var(--muted)"></i></span>`);
   $('#legend').innerHTML=items.join('');
@@ -731,7 +734,7 @@ function tick(a, fast){
     for(let b1=a1+1;b1<V.length;b1++){ const j=V[b1]; let dx=xi-X[j], dy=yi-Y[j]; let d2=dx*dx+dy*dy; if(d2>90000) continue; if(d2<0.01){dx=rnd()-.5;dy=rnd()-.5;d2=0.25;}
       const f=REP/d2; fx[i]+=dx*f; fy[i]+=dy*f; fx[j]-=dx*f; fy[j]-=dy*f; } }
   const tE=Math.floor(state.t), E=g.edges;
-  for(let e=0;e<tE;e++){ const u=E[e][0], v=E[e][1]; if(u===v) continue; const dx=X[v]-X[u], dy=Y[v]-Y[u]; const d=Math.sqrt(dx*dx+dy*dy)||0.01; const f=KS/Math.max(1,Math.min(dg[u],dg[v]))*(d-L0)/d; fx[u]+=dx*f; fy[u]+=dy*f; fx[v]-=dx*f; fy[v]-=dy*f; }
+  for(let e=0;e<tE;e++){ const u=E[e][0], v=E[e][1]; if(u===v||edgeGone(e)) continue; const dx=X[v]-X[u], dy=Y[v]-Y[u]; const d=Math.sqrt(dx*dx+dy*dy)||0.01; const f=KS/Math.max(1,Math.min(dg[u],dg[v]))*(d-L0)/d; fx[u]+=dx*f; fy[u]+=dy*f; fx[v]-=dx*f; fy[v]-=dy*f; }
   for(const i of V){ fx[i]-=X[i]*G; fy[i]-=Y[i]*G; VX[i]=(VX[i]+fx[i])*0.55; VY[i]=(VY[i]+fy[i])*0.55; const sp=Math.hypot(VX[i],VY[i]); if(sp>12){VX[i]*=12/sp;VY[i]*=12/sp;} X[i]+=VX[i]*a; Y[i]+=VY[i]*a; }
 }
 function hexRGB(h){ h=h.replace('#',''); if(h.length===3)h=h.split('').map(c=>c+c).join(''); const v=parseInt(h,16); return [(v>>16)&255,(v>>8)&255,v&255]; }
@@ -741,7 +744,7 @@ function liveComponents(){ // giant component of currently visible edges
   const g=state.g, n=g.n, par=new Int32Array(n), sz=new Int32Array(n).fill(1); for(let i=0;i<n;i++) par[i]=i;
   const f=x=>{ while(par[x]!==x){ par[x]=par[par[x]]; x=par[x]; } return x; };
   const tE=Math.floor(state.t), deg=new Int32Array(n);
-  for(let e=0;e<tE;e++){ const [u,v]=g.edges[e]; deg[u]++; deg[v]++; let a=f(u), b=f(v); if(a!==b){ if(sz[a]<sz[b]){const t=a;a=b;b=t;} par[b]=a; sz[a]+=sz[b]; } }
+  for(let e=0;e<tE;e++){ if(edgeGone(e)) continue; const [u,v]=g.edges[e]; deg[u]++; deg[v]++; let a=f(u), b=f(v); if(a!==b){ if(sz[a]<sz[b]){const t=a;a=b;b=t;} par[b]=a; sz[a]+=sz[b]; } }
   let best=-1,bs=0, nv=0; for(let i=0;i<n;i++){ if(!visibleNode(i)) continue; nv++; const r=f(i); if(sz[r]>bs){bs=sz[r];best=r;} }
   const giant=new Uint8Array(n); for(let i=0;i<n;i++) giant[i]= (bs>1 && f(i)===best) ? 1:0;
   return {giant, deg, nv, bs, tE};
@@ -763,12 +766,16 @@ function draw(){
   const cNode=hexRGB(css('--node')), cHub=hexRGB(css('--hub')), edgeCol=css('--edge'), shortCol=css('--short'), hubCol=css('--hub'), muted=css('--muted'), hiCol=css('--hi');
   let kmax=1; for(let i=0;i<n;i++) if(deg[i]>kmax) kmax=deg[i];
   const sizeScale = clamp(Math.sqrt(12000/Math.max(n,30))/6, 0.55, 2.0) * clamp(v.s,0.5,1.25);
-  const rad=i=> (2.2+Math.sqrt(deg[i])*1.25)*sizeScale;
+  const building = !!g.target && state.t<state.T;
+  const sdeg = building? g.target : deg;
+  if(building){ kmax=1; for(let i=0;i<n;i++) if(sdeg[i]>kmax) kmax=sdeg[i]; }
+  const rad=i=> (2.2+Math.sqrt(sdeg[i])*1.25)*sizeScale;
   // edges
   const tE=live.tE; const ea=clamp(0.75*Math.sqrt(250/Math.max(tE,1)),0.12,0.6);
   const hov=state.hover;
   ctx.lineWidth=1;
   for(let e=0;e<tE;e++){
+    if(edgeGone(e)) continue;
     const [u,w]=g.edges[e]; const fl=state.flags[e]; const x1=SX(state.x[u]),y1=SY(state.y[u]);
     const isHov = hov>=0 && (u===hov||w===hov);
     ctx.strokeStyle = isHov? edgeCol : fl===1? shortCol : fl===2? hubCol : edgeCol;
@@ -779,25 +786,52 @@ function draw(){
     else { const x2=SX(state.x[w]),y2=SY(state.y[w]); const mlt=state.mult[e];
       if(mlt>0){ const mx=(x1+x2)/2,my=(y1+y2)/2, dx=x2-x1,dy=y2-y1, L=Math.hypot(dx,dy)||1, off=8*mlt*(mlt%2?1:-1); ctx.moveTo(x1,y1); ctx.quadraticCurveTo(mx-dy/L*off,my+dx/L*off,x2,y2); }
       else { ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); } }
-    ctx.stroke();
+    ctx.setLineDash(fl===3? [4,3] : []);
+    ctx.stroke(); ctx.setLineDash([]);
   }
   ctx.globalAlpha=1;
+  // stubs: dangling half-links still waiting to be matched
+  let stubsLeft=0;
+  if(building){
+    const fe = state.t>tE && tE<state.T ? g.edges[tE] : null, frac=state.t-tE;
+    const left=new Int32Array(n); for(let i=0;i<n;i++) left[i]=g.target[i]-deg[i];
+    if(fe){ left[fe[0]]--; left[fe[1]]--; }
+    ctx.lineWidth=1.6; ctx.strokeStyle=css('--node'); ctx.fillStyle=css('--node'); ctx.globalAlpha=0.95;
+    for(let i=0;i<n;i++){
+      const c=Math.max(0,left[i]); stubsLeft+=c; if(!c) continue;
+      const x=SX(state.x[i]), y=SY(state.y[i]), r=rad(i), len=r+Math.max(6,7*sizeScale), d=g.target[i];
+      for(let j=0;j<c;j++){ const a=i*2.39996+ (j+ (d-c))*2*Math.PI/Math.max(d,1);
+        const ex=x+Math.cos(a)*len, ey=y+Math.sin(a)*len;
+        ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(ex,ey); ctx.stroke();
+        ctx.beginPath(); ctx.arc(ex,ey,1.9,0,7); ctx.fill(); }
+    }
+    if(fe){ stubsLeft+=2; // the pair being joined right now, drawn growing toward each other
+      const [u,w]=fe, x1=SX(state.x[u]), y1=SY(state.y[u]);
+      ctx.strokeStyle=hiCol; ctx.globalAlpha=1; ctx.lineWidth=2.6;
+      if(u===w){ const r=rad(u)+5; ctx.beginPath(); ctx.arc(x1+r*0.7,y1-r*0.7,r*0.75,0,2*Math.PI*Math.min(1,frac*1.5)); ctx.stroke(); }
+      else { const x2=SX(state.x[w]), y2=SY(state.y[w]), h=Math.min(1,frac*1.25)/2;
+        ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x1+(x2-x1)*h, y1+(y2-y1)*h); ctx.moveTo(x2,y2); ctx.lineTo(x2+(x1-x2)*h, y2+(y1-y2)*h); ctx.stroke();
+        for(const [px,py] of [[x1,y1],[x2,y2]]){ ctx.beginPath(); ctx.arc(px,py,rad(px===x1&&py===y1?u:w)+3,0,7); ctx.stroke(); } }
+    }
+    ctx.globalAlpha=1;
+  }
   // nodes
   const byFit = state.model.id==='fitness' && state.P.colorFit && g.eta;
   const order=[]; for(let i=0;i<n;i++) if(visibleNode(i)&&state.placed[i]) order.push(i);
-  order.sort((a,b)=>deg[a]-deg[b]);
+  order.sort((a,b)=>sdeg[a]-sdeg[b]);
   const lk=Math.log(Math.max(kmax,24)+1);
   for(const i of order){
     const x=SX(state.x[i]), y=SY(state.y[i]), r=rad(i);
-    const t = byFit? g.eta[i] : Math.pow(Math.log(deg[i]+1)/lk, 2);
-    ctx.fillStyle = (live.giant[i]||byFit)? mix(cNode,cHub,t) : muted;
+    const t = byFit? g.eta[i] : Math.pow(Math.log(sdeg[i]+1)/lk, 2);
+    ctx.fillStyle = (live.giant[i]||byFit||building)? mix(cNode,cHub,t) : muted;
     ctx.beginPath(); ctx.arc(x,y,r,0,7); ctx.fill();
     if(i===hov){ ctx.strokeStyle=hiCol; ctx.lineWidth=3; ctx.stroke(); }
   }
   // HUD live readout
   const S=live.bs/n;
-  $('#hudLive').textContent = state.t<state.T ? `Building: ${live.nv} nodes, ${tE} links, ⟨k⟩ = ${fmt(2*tE/Math.max(live.nv,1))}, giant = ${fmt(live.bs/Math.max(live.nv,1),2)}` : `${n} nodes, ${state.T} links, ⟨k⟩ = ${fmt(2*state.T/n)}`;
-  $('#tcount').textContent=`${tE} / ${state.T} links`;
+  if(building) $('#hudLive').textContent = `Stub matching: ${tE} links formed, ${stubsLeft} stubs left`;
+  else $('#hudLive').textContent = state.t<state.T ? `Building: ${live.nv} nodes, ${tE} links, ⟨k⟩ = ${fmt(2*tE/Math.max(live.nv,1))}, giant = ${fmt(live.bs/Math.max(live.nv,1),2)}` : `${n} nodes, ${state.st.L} links, ⟨k⟩ = ${fmt(2*state.st.L/n)}`;
+  $('#tcount').textContent= g.target? `${tE} / ${state.T} stub pairs` : `${tE} / ${state.T} links`;
   state.SX=SX; state.SY=SY; state.rad=rad; state.liveDeg=deg;
 }
 
@@ -805,7 +839,7 @@ let last=performance.now();
 function frame(now){
   const dt=Math.min(50,now-last); last=now;
   if(state.g){
-    if(state.playing){ const dur=clamp(3+state.T/180,3.5,11)*1000; state.t=Math.min(state.T, state.t+state.T*dt/dur + 0.0001); $('#scrub').value=state.t;
+    if(state.playing){ const dur=(state.g.target? clamp(state.T*0.05,6,22) : clamp(3+state.T/180,3.5,11))*1000; state.t=Math.min(state.T, state.t+state.T*dt/dur + 0.0001); $('#scrub').value=state.t;
       if(state.t>=state.T){ state.playing=false; $('#play').textContent='Play build'; } state.alpha=Math.max(state.alpha,0.6); }
     if(!state.ring && state.alpha>0.02){ tick(state.alpha); state.alpha*= state.playing?1:0.985; }
     draw();
