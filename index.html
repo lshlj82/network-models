@@ -144,7 +144,7 @@ button.theme-btn svg{width:20px; height:20px; fill:none; stroke:currentColor; st
 <style>
 /* Course-wide demo title: the same on every demo page and on the course landing page */
 h1.course-title{font-family:"STIX Two Text","Noto Serif KR",Cambria,"Times New Roman",serif !important;font-weight:600 !important;font-style:normal !important;font-size:clamp(30px,3.6vw,44px) !important;line-height:1.08 !important;letter-spacing:-.01em !important;text-transform:none !important;color:var(--ink) !important;word-break:keep-all}
-h1.course-title .course-title-ko{display:block;font-family:"Noto Serif KR","STIX Two Text",serif;font-weight:400;font-size:.5em;line-height:1.3;letter-spacing:0;color:var(--muted);margin:.3em 0 0}
+h1.course-title .course-title-ko{display:block;font-family:"Noto Serif KR","STIX Two Text",serif;font-weight:400;font-size:.5em;line-height:1.3;letter-spacing:0;color:var(--ink2);margin:.3em 0 0}
 /* space above the title, so it starts about 48px (phones: 32px) below the top of the page */
 h1.course-title{margin-top:26px !important}
 @media (max-width:700px){h1.course-title{margin-top:16px !important}}
@@ -164,7 +164,7 @@ h1.course-title{margin-top:26px !important}
 
   <div class="stage">
     <div class="board" id="board">
-      <canvas id="net" aria-label="Network visualization"></canvas>
+      <canvas id="net" role="img" aria-label="Network visualization"></canvas>
       <div class="hud">
         <div><div class="now" id="hudTitle"></div><div class="live" id="hudLive"></div></div>
         <div class="legend" id="legend"></div>
@@ -194,8 +194,8 @@ h1.course-title{margin-top:26px !important}
 
     <section class="blk">
       <div class="charthead"><h3 style="margin:0">Degree distribution <i>P</i>(<i>k</i>)</h3>
-        <div class="seg" id="scaleSeg"><button data-s="lin">Linear</button><button data-s="log">Log–log</button></div></div>
-      <div class="chartwrap"><canvas class="chart" id="dist"></canvas></div>
+        <div class="seg" id="scaleSeg" role="group" aria-label="Axis scale"><button data-s="lin">Linear</button><button data-s="log">Log–log</button></div></div>
+      <div class="chartwrap"><canvas class="chart" id="dist" role="img" aria-label="Degree distribution chart"></canvas></div>
     </section>
 
     <section class="blk"><h3>How it is built</h3><div id="pBuild"></div></section>
@@ -204,7 +204,7 @@ h1.course-title{margin-top:26px !important}
     <section class="blk" id="expBlk"><h3 id="expTitle">Experiment</h3>
       <p class="expdesc" id="expDesc"></p>
       <div><button class="btn" id="expRun">Run experiment</button><span class="expstatus" id="expStatus"></span></div>
-      <div class="chartwrap" style="margin-top:10px"><canvas class="chart" id="expChart" style="height:240px"></canvas></div>
+      <div class="chartwrap" style="margin-top:10px"><canvas class="chart" id="expChart" role="img" aria-label="Experiment chart" style="height:240px"></canvas></div>
     </section>
 
     <section class="blk"><h3>In code</h3><pre class="code" id="pCode"></pre></section>
@@ -237,8 +237,9 @@ function gnm(N,L){
   return {n:N, edges:E};
 }
 function gnp(N,p){ const E=[]; for(let u=0;u<N;u++) for(let v=u+1;v<N;v++) if(rnd()<p) E.push([u,v]); return {n:N, edges:shuffle(E)}; }
+function ringK(N,k){ return 2*Math.min(k>>1,(N-1)>>1); } // largest even k a ring of N nodes can hold
 function ringBase(N,k){
-  const E=[], S=new Set(); const h=Math.min(k>>1,(N-1)>>1);
+  const E=[], S=new Set(); const h=ringK(N,k)>>1;
   for(let j=1;j<=h;j++) for(let u=0;u<N;u++){ const v=(u+j)%N; const kk=KEY(u,v); if(!S.has(kk)){S.add(kk);E.push([u,v]);} }
   return {E,S};
 }
@@ -251,7 +252,7 @@ function ws(N,k,p){
     }
     keep.push(e);
   }
-  return {n:N, edges:keep.concat(sc), ring:true, k};
+  return {n:N, edges:keep.concat(sc), ring:true, k:ringK(N,k)};
 }
 function nw(N,k,p){
   const {E,S}=ringBase(N,k); const add=[];
@@ -461,7 +462,7 @@ const MODELS=[
 { id:'gnm', group:'Random graphs', label:'Erdős–Rényi G(N, L)', title:'Erdős–Rényi random graph G(N, L)', ko:'Random network, version I',
   cite:'P. Erdős & A. Rényi, Publicationes Mathematicae 6, 290 (1959)',
   lede:'The “egalitarian”, maximum‑entropy approach: assume we know nothing about a network except its number of nodes and links. Every graph with exactly N nodes and L links is equally likely.',
-  params:[{k:'N',label:'Nodes N',min:20,max:800,step:10,v:200},{k:'L',label:'Links L',min:0,max:1600,step:5,v:200}],
+  params:[{k:'N',label:'Nodes N',min:20,max:800,step:10,v:200},{k:'L',label:'Links L',min:0,max:1600,step:5,v:200,maxFn:P=>Math.min(1600,Math.floor(P.N*(P.N-1)/2))}],
   gen:P=>gnm(P.N,P.L), theory:'poisson',
   build:`<ol class="steps"><li>Start with <i>N</i> isolated nodes.</li><li>Pick a pair of nodes uniformly at random among pairs that are not yet linked.</li><li>Link them, and repeat until there are <i>L</i> links.</li></ol><div class="eq">⟨<i>k</i>⟩ = 2<i>L</i> / <i>N</i></div>`,
   notice:`<p>Press <b>Play build</b> and watch the largest connected component (full color; everything else is faded). While ⟨<i>k</i>⟩ &lt; 1 it stays tiny. Around ⟨<i>k</i>⟩ ≈ 1 a <b>giant component</b> suddenly appears: the percolation transition, a continuous phase transition in physics terms.</p><p>For N = 200, the transition sits near L = 100.</p>`,
@@ -473,13 +474,13 @@ const MODELS=[
   gen:P=>gnp(P.N,P.p), theory:'poisson',
   build:`<ol class="steps"><li>Start with <i>N</i> isolated nodes.</li><li>For each of the <i>N</i>(<i>N</i>−1)/2 pairs, flip a biased coin and link the pair with probability <i>p</i>.</li></ol>
   <div class="eq">⟨<i>k</i>⟩ = <i>p</i>(<i>N</i>−1), &nbsp; <i>P</i>(<i>k</i>) = C(<i>N</i>−1, <i>k</i>) <i>p</i><sup><i>k</i></sup>(1−<i>p</i>)<sup><i>N</i>−1−<i>k</i></sup> ≈ e<sup>−⟨<i>k</i>⟩</sup>⟨<i>k</i>⟩<sup><i>k</i></sup>/<i>k</i>!</div>
-  <div class="eq"><i>C</i>(<i>i</i>) = <i>p</i> for every node, so ⟨<i>C</i>⟩ = <i>p</i></div>`,
+  <div class="eq">For a node with <i>k<sub>i</sub></i> ≥ 2, <i>C</i>(<i>i</i>) is random with expected value <i>p</i>. Nodes with <i>k<sub>i</sub></i> &lt; 2 count as <i>C</i> = 0 in the average, so E[⟨<i>C</i>⟩] = <i>p</i>·Pr(<i>K</i> ≥ 2), <i>K</i> ~ Binomial(<i>N</i>−1, <i>p</i>), which is close to <i>p</i> only when ⟨<i>k</i>⟩ ≫ 1</div>`,
   notice:`<p>The degree distribution follows the Poisson curve (dashed): every node looks alike and there are no hubs. Switch to log–log to see how fast it falls off.</p><p>For sparse graphs <i>p</i> ≪ 1, so <i>C</i> ≪ 1. Many real networks have far larger clustering and far broader degree distributions than this, so the random model does not describe them well.</p>`,
   exp:'percolation', code:`import networkx as nx\nG = nx.gnp_random_graph(N, p)   # Gilbert`},
 { id:'ws', group:'Small worlds', label:'Watts–Strogatz', title:'Watts–Strogatz small‑world model', ko:'',
   cite:'D. J. Watts & S. H. Strogatz, Nature 393, 440 (1998)',
   lede:'Mimics the “small‑world” property: small average shortest‑path lengths together with large clustering. Start from an ordered ring lattice and add a little randomness by rewiring.',
-  params:[{k:'N',label:'Nodes N',min:10,max:400,step:2,v:40},{k:'k',label:'Neighbors k (even)',min:2,max:12,step:2,v:4},{k:'pv',label:'Rewiring probability p',min:0,max:300,step:1,v:200,map:logP,f:fmtP}],
+  params:[{k:'N',label:'Nodes N',min:10,max:400,step:2,v:40},{k:'k',label:'Neighbors k (even)',min:2,max:12,step:2,v:4,maxFn:P=>ringK(P.N,12)},{k:'pv',label:'Rewiring probability p',min:0,max:300,step:1,v:200,map:logP,f:fmtP}],
   gen:P=>ws(P.N,P.k,logP(P.pv)), layout:'ring',
   build:`<ol class="steps"><li>Place <i>N</i> nodes on a ring and link each to its <i>k</i> nearest neighbors (<i>k</i>/2 on each side).</li><li>For each edge, with probability <i>p</i>, keep one endpoint and rewire the other to a randomly chosen node (no self‑loops or duplicates).</li></ol>
   <div class="eq"><i>p</i> = 0: lattice, <i>C</i> = 3(<i>k</i>−2) / 4(<i>k</i>−1); &nbsp; <i>p</i> = 1: close to a random graph</div>`,
@@ -488,7 +489,7 @@ const MODELS=[
 { id:'nw', group:'Small worlds', label:'Newman–Watts', title:'Newman–Watts small‑world model', ko:'Edge‑addition version of the small‑world model',
   cite:'M. E. J. Newman & D. J. Watts, Phys. Lett. A 263, 341 (1999)',
   lede:'The variant that adds shortcuts instead of rewiring. The original lattice is never destroyed, so the network can never break apart.',
-  params:[{k:'N',label:'Nodes N',min:10,max:400,step:2,v:40},{k:'k',label:'Neighbors k (even)',min:2,max:12,step:2,v:4},{k:'pv',label:'Shortcut probability p',min:0,max:300,step:1,v:170,map:logP,f:fmtP}],
+  params:[{k:'N',label:'Nodes N',min:10,max:400,step:2,v:40},{k:'k',label:'Neighbors k (even)',min:2,max:12,step:2,v:4,maxFn:P=>ringK(P.N,12)},{k:'pv',label:'Shortcut probability p',min:0,max:300,step:1,v:170,map:logP,f:fmtP}],
   gen:P=>nw(P.N,P.k,logP(P.pv)), layout:'ring',
   build:`<ol class="steps"><li>Build the same ring lattice: each node linked to its <i>k</i> nearest neighbors.</li><li>For each lattice edge (<i>u</i>, <i>v</i>), with probability <i>p</i> add a <em>new</em> edge from <i>u</i> to a random node <i>w</i>.</li></ol>
   <div class="eq">⟨<i>k</i>⟩ ≈ <i>k</i>(1 + <i>p</i>)</div>`,
@@ -629,6 +630,7 @@ const EXPS={
 };
 
 /* ============ state ============ */
+const reduceMQ=matchMedia('(prefers-reduced-motion: reduce)');
 const state={ model:null, P:{}, mem:{}, g:null, st:null, t:0, T:0, playing:false, scale:'lin',
   x:null,y:null,vx:null,vy:null,placed:null, alpha:1, view:{s:1,cx:0,cy:0}, hover:-1, expCache:{} };
 
@@ -650,7 +652,7 @@ function selectModel(id, play){
   const ex=EXPS[m.exp]; $('#expTitle').textContent=ex.title; $('#expDesc').innerHTML=ex.desc; $('#expStatus').textContent='';
   const cached=state.expCache[m.exp+(m.id==='nw'?'nw':'')]; if(cached) plot($('#expChart'),cached); else plot($('#expChart'),{series:[],empty:'Press “Run experiment” to generate this chart.'});
   if(m.theory==='poisson' || m.layout==='ring') setScale('lin',false); else setScale('log',false);
-  renderParams(); rebuild(play);
+  renderParams(); rebuild(play && !reduceMQ.matches); // no autoplay when the reader asks for reduced motion
   if(window.innerWidth>920) $('#panel').scrollTop=0;
 }
 
@@ -661,14 +663,21 @@ function renderParams(){
     if(p.type==='check'){ const l=document.createElement('label'); l.className='check'; l.innerHTML=`<input type="checkbox" ${P[p.k]?'checked':''}> ${p.label}`;
       l.querySelector('input').onchange=e=>{ P[p.k]=e.target.checked; if(p.live){ draw(); } else schedule(); }; box.appendChild(l); continue; }
     const row=document.createElement('div'); row.className='param';
-    if(p.type==='select'){ row.innerHTML=`<label>${p.label}</label><span></span><div class="seg" role="group"></div>`; const seg=row.querySelector('.seg');
+    if(p.type==='select'){ row.innerHTML=`<label>${p.label}</label><span></span><div class="seg" role="group" aria-label="${p.label.replace(/<[^>]+>/g,'')}"></div>`; const seg=row.querySelector('.seg');
       for(const [v,t] of p.opts){ const b=document.createElement('button'); b.textContent=t; b.setAttribute('aria-pressed',P[p.k]===v); b.onclick=()=>{ P[p.k]=v; renderParams(); if(p.play){ clearTimeout(timer); rebuild(true); } else schedule(); }; seg.appendChild(b); }
       box.appendChild(row); continue; }
     const id='p_'+p.k; const f=p.f||(x=>String(x));
-    row.innerHTML=`<label for="${id}">${p.label}</label><output id="o_${p.k}">${f(p.map?p.map(P[p.k]):P[p.k])}</output><input type="range" id="${id}" min="${p.min}" max="${p.max}" step="${p.step}" value="${P[p.k]}">`;
-    row.querySelector('input').oninput=e=>{ P[p.k]=+e.target.value; row.querySelector('output').textContent=f(p.map?p.map(P[p.k]):P[p.k]); schedule(); };
+    const mx=p.maxFn? p.maxFn(P) : p.max; if(P[p.k]>mx) P[p.k]=mx;
+    row.innerHTML=`<label for="${id}">${p.label}</label><output id="o_${p.k}" for="${id}">${f(p.map?p.map(P[p.k]):P[p.k])}</output><input type="range" id="${id}" min="${p.min}" max="${mx}" step="${p.step}" value="${P[p.k]}">`;
+    row.querySelector('input').oninput=e=>{ P[p.k]=+e.target.value; row.querySelector('output').textContent=f(p.map?p.map(P[p.k]):P[p.k]); syncLimits(); schedule(); };
     box.appendChild(row);
   }
+}
+// keep sliders whose feasible range depends on N (e.g. L ≤ N(N−1)/2, even k ≤ N−1) in step with the current values
+function syncLimits(){
+  const m=state.model, P=state.P;
+  for(const p of m.params){ if(!p.maxFn) continue; const inp=document.getElementById('p_'+p.k); if(!inp) continue;
+    const mx=p.maxFn(P); inp.max=mx; if(P[p.k]>mx){ P[p.k]=mx; inp.value=mx; const o=document.getElementById('o_'+p.k); if(o) o.textContent=(p.f||(x=>String(x)))(p.map?p.map(mx):mx); } }
 }
 let timer=null; function schedule(){ clearTimeout(timer); timer=setTimeout(()=>rebuild(false),120); }
 
@@ -685,7 +694,7 @@ function rebuild(play){
   const sc=$('#scrub'); sc.max=state.T; 
   if(play && state.T>0){ state.t=0; state.playing=true; $('#play').textContent='Pause'; }
   else { state.t=state.T; state.playing=false; $('#play').textContent='Play build'; placeAll(); }
-  sc.value=state.t; state.alpha=1; state.firstFrame=true; state.hover=-1; $('#tip').style.display='none';
+  sc.value=state.t; state.alpha=1; state.firstFrame=true; state.hover=-1; state.dirty=true; $('#tip').style.display='none';
   renderStats(); renderDist(); renderLegend();
 }
 function placeNode(i){
@@ -697,7 +706,8 @@ function placeNode(i){
   else { const R=Math.sqrt(n)*14, a=rnd()*7, r=R*Math.sqrt(rnd()); state.x[i]=Math.cos(a)*r; state.y[i]=Math.sin(a)*r; }
   state.vx[i]=state.vy[i]=0; state.placed[i]=1;
 }
-function placeAll(){ for(let i=0;i<state.g.n;i++) placeNode(i); if(!state.ring){ const it=state.g.n>500?120:220; for(let k=0;k<it;k++) tick(1, true); } }
+// the warm-up layout runs in time-boxed slices from frame(), so a large N does not block input
+function placeAll(){ for(let i=0;i<state.g.n;i++) placeNode(i); state.warm = state.ring? 0 : (state.g.n>500?120:220); state.dirty=true; }
 function edgeGone(e){ return state.flags && state.flags[e]===3 && state.t>=state.T; }
 function visibleNode(i){ const b=state.g.birth; return !b || b[i]<=state.t; }
 
@@ -706,9 +716,10 @@ function renderStats(){
   const st=state.st, g=state.g, m=state.model, P=state.P;
   const items=[['N',st.n,'nodes'],['L',st.L,'links'],['⟨k⟩',fmt(st.kav),'average degree'],['k_max',st.kmax,'largest degree'],['C',fmt(st.C,3),'avg. clustering'],['ℓ',fmt(st.ell),'avg. path (giant)'],['S',fmt(st.S,3),'giant component']];
   let note='';
-  if(m.id==='gnp'){ items.push(['p',P.p.toFixed(4),'⟨C⟩ expected']); }
+  if(m.id==='gnp'){ const q=1-P.p, n1=st.n-1, pk2=1-Math.pow(q,n1)-n1*P.p*Math.pow(q,n1-1); items.push(['p·Pr(k≥2)',fmt(P.p*pk2,4),'expected ⟨C⟩']); }
   if(m.id==='gnm'||m.id==='gnp'){ note= st.kav<1? 'Below the transition: ⟨k⟩ < 1, no giant component yet.' : 'Above the transition: ⟨k⟩ > 1, a giant component has formed.'; }
-  if(m.id==='ws'||m.id==='nw'){ const k=g.k, C0=k>2?3*(k-2)/(4*(k-1)):0; items.push(['C(0)',fmt(C0,3),'lattice clustering']); note=`Lattice path length at p = 0 is about N/2k = ${fmt(st.n/(2*k),1)}.`; }
+  if(m.id==='ws'||m.id==='nw'){ const lat=latticeRef(st.n,g.k); items.push(['C(0)',fmt(lat.C,3),'lattice clustering']);
+    note=`Ring lattice at p = 0 with k = ${g.k}${g.k!==P.k?` (the most N = ${st.n} nodes allow)`:''}: path length ℓ(0) = ${fmt(lat.ell,2)}.`+(3*g.k>2*st.n?' The textbook values 3(k−2)/4(k−1) and N/2k assume k ≪ N, so they do not apply to this dense ring.':''); }
   if(m.id==='config'){ items.push(['loops',g.self,'self‑loops'],['multi',g.multi,'multi‑edges']); note=g.erased? `Erased ${g.self+g.multi} of ${g.total} links to make the graph simple.` : 'Self‑loops and multi‑edges are kept (drawn in red).'; }
   if(m.id==='static') items.push(['γ',fmt(g.gamma),'predicted exponent']);
   if(m.id==='attract') items.push(['γ',fmt(3+P.A/P.m),'predicted exponent']);
@@ -717,6 +728,8 @@ function renderStats(){
   $('#stats').innerHTML=items.map(([a,b,c])=>`<div class="stat"><b>${b}</b><small>${a}, ${c}</small></div>`).join('');
   $('#statNote').textContent=note;
 }
+const latCache=new Map(); // measured clustering and path length of the p = 0 ring lattice
+function latticeRef(N,k){ const key=N+','+k; if(!latCache.has(key)){ const a=analyze({n:N, edges:ringBase(N,k).E}); latCache.set(key,{C:a.C, ell:a.ell}); } return latCache.get(key); }
 function renderDist(){
   const st=state.st, m=state.model, P=state.P, g=state.g, log=state.scale==='log';
   const pts=degDist(st.deg,log); const ser=[{kind:'dot',pts,color:css('--node'),label:'Measured'}];
@@ -743,7 +756,7 @@ function renderLegend(){
 
 /* ============ simulation & drawing ============ */
 const cv=$('#net'), ctx=cv.getContext('2d'); let W=0,H=0,DPR=1;
-function resize(){ DPR=window.devicePixelRatio||1; W=cv.clientWidth; H=cv.clientHeight; cv.width=W*DPR; cv.height=H*DPR; }
+function resize(){ DPR=window.devicePixelRatio||1; W=cv.clientWidth; H=cv.clientHeight; cv.width=W*DPR; cv.height=H*DPR; state.dirty=true; }
 new ResizeObserver(()=>{ resize(); }).observe($('#board'));
 new ResizeObserver(()=>{ if(state.st){ renderDist(); const c=state.expCache[state.model.exp+(state.model.id==='nw'?'nw':'')]; if(c) plot($('#expChart'),c);} }).observe($('#panel'));
 
@@ -783,7 +796,8 @@ function draw(){
   if(!any){minx=miny=-50;maxx=maxy=50;}
   const padT=70, padB=70, padX=30; const bw=Math.max(maxx-minx,40), bh=Math.max(maxy-miny,40);
   const ts=Math.min((W-2*padX)/bw,(H-padT-padB)/bh); const tcx=(minx+maxx)/2, tcy=(miny+maxy)/2;
-  const v=state.view; const k=state.firstFrame?1:0.18; v.s+= (ts-v.s)*k; v.cx+=(tcx-v.cx)*k; v.cy+=(tcy-v.cy)*k; state.firstFrame=false;
+  const v=state.view; const k=(state.firstFrame||reduceMQ.matches)?1:0.18; v.s+= (ts-v.s)*k; v.cx+=(tcx-v.cx)*k; v.cy+=(tcy-v.cy)*k; state.firstFrame=false;
+  state.viewMoving = Math.abs(ts-v.s)>1e-3*ts || Math.abs(tcx-v.cx)*v.s>0.3 || Math.abs(tcy-v.cy)*v.s>0.3;
   const ox=W/2, oy=padT+(H-padT-padB)/2; const SX=x=>ox+(x-v.cx)*v.s, SY=y=>oy+(y-v.cy)*v.s;
   const cNode=hexRGB(css('--node')), cHub=hexRGB(css('--hub')), edgeCol=css('--edge'), shortCol=css('--short'), hubCol=css('--hub'), muted=css('--muted'), hiCol=css('--hi');
   let kmax=1; for(let i=0;i<n;i++) if(deg[i]>kmax) kmax=deg[i];
@@ -857,26 +871,37 @@ function draw(){
   state.SX=SX; state.SY=SY; state.rad=rad; state.liveDeg=deg;
 }
 
-let last=performance.now();
+let last=performance.now(), boardVisible=true;
+new IntersectionObserver(es=>{ boardVisible=es[es.length-1].isIntersecting; if(boardVisible) state.dirty=true; }).observe($('#board'));
+// Work happens only while something changes: playback, layout warm-up or cooling, the view easing, or a redraw request.
+// Nothing runs while the board is off screen, and a finished, cooled layout is not recomputed every frame.
 function frame(now){
   const dt=Math.min(50,now-last); last=now;
-  if(state.g){
+  if(state.g && boardVisible){
+    let moved=false; const still=reduceMQ.matches && !state.playing;
     if(state.playing){ const dur=(state.g.target? clamp(state.T*0.05,6,22) : clamp(3+state.T/180,3.5,11))*1000; state.t=Math.min(state.T, state.t+state.T*dt/dur + 0.0001); $('#scrub').value=state.t;
-      if(state.t>=state.T){ state.playing=false; $('#play').textContent='Play build'; } state.alpha=Math.max(state.alpha,0.6); }
-    if(!state.ring && state.alpha>0.02){ tick(state.alpha); state.alpha*= state.playing?1:0.985; }
-    draw();
+      if(state.t>=state.T){ state.playing=false; $('#play').textContent='Play build'; } state.alpha=Math.max(state.alpha,0.6); moved=true; }
+    const t0=performance.now();
+    if(state.warm>0){ while(state.warm>0 && performance.now()-t0<12){ tick(1, true); state.warm--; } moved=true; }
+    else if(!state.ring && state.alpha>0.02){
+      if(still){ while(state.alpha>0.02 && performance.now()-t0<12){ tick(state.alpha); state.alpha*=0.985; } } // settle off screen, then draw once
+      else { tick(state.alpha); state.alpha*= state.playing?1:0.985; }
+      moved=true; }
+    const hold = still && (state.warm>0 || (!state.ring && state.alpha>0.02));
+    if((moved || state.dirty || state.viewMoving) && !hold){ state.dirty=false; draw(); }
   }
   requestAnimationFrame(frame);
 }
 
 /* controls */
 $('#play').onclick=()=>{
+  state.dirty=true;
   if(state.playing){ state.playing=false; $('#play').textContent='Resume'; return; }
   if(state.t>=state.T){ state.t=0; state.placed.fill(0); state.firstFrame=true; }
   state.playing=true; $('#play').textContent='Pause'; state.alpha=1;
 };
 $('#regen').onclick=()=>rebuild(false);
-$('#scrub').oninput=e=>{ state.playing=false; $('#play').textContent=state.t<state.T?'Resume':'Play build'; state.t=+e.target.value; state.alpha=Math.max(state.alpha,0.5); };
+$('#scrub').oninput=e=>{ state.playing=false; $('#play').textContent=state.t<state.T?'Resume':'Play build'; state.t=+e.target.value; state.alpha=Math.max(state.alpha,0.5); state.dirty=true; };
 $('#expRun').onclick=()=>{
   const m=state.model, key=m.exp+(m.id==='nw'?'nw':''); $('#expStatus').textContent='Running…'; $('#expRun').disabled=true;
   setTimeout(()=>{ try{ const o=EXPS[m.exp].run(); state.expCache[key]=o; plot($('#expChart'),o); $('#expStatus').textContent='Done. Run again for a fresh sample.'; }
@@ -886,14 +911,18 @@ $('#expRun').onclick=()=>{
 function pick(ev){
   if(!state.SX) return; const r=cv.getBoundingClientRect(); const mx=ev.clientX-r.left, my=ev.clientY-r.top; let best=-1, bd=1e9;
   for(let i=0;i<state.g.n;i++){ if(!visibleNode(i)||!state.placed[i]) continue; const dx=state.SX(state.x[i])-mx, dy=state.SY(state.y[i])-my; const d=dx*dx+dy*dy; const rr=Math.max(state.rad(i)+4,9); if(d<rr*rr && d<bd){bd=d;best=i;} }
+  if(best!==state.hover) state.dirty=true;
   state.hover=best; const tip=$('#tip');
   if(best>=0){ let s=`Node ${best}, degree ${state.liveDeg[best]}`; if(state.g.eta) s+=`, fitness η = ${state.g.eta[best].toFixed(2)}`; tip.textContent=s; tip.style.left=state.SX(state.x[best])+'px'; tip.style.top=(state.SY(state.y[best])-state.rad(best))+'px'; tip.style.display='block'; }
   else tip.style.display='none';
 }
 cv.addEventListener('pointermove',pick); cv.addEventListener('pointerdown',pick);
-cv.addEventListener('pointerleave',()=>{ state.hover=-1; $('#tip').style.display='none'; });
-window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{ renderDist(); const c=state.expCache[state.model.exp+(state.model.id==='nw'?'nw':'')]; if(c) plot($('#expChart'),c); });
-new MutationObserver(()=>{ renderDist(); const c=state.expCache[state.model.exp+(state.model.id==='nw'?'nw':'')]; if(c) plot($('#expChart'),c); }).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+cv.addEventListener('pointerleave',()=>{ state.hover=-1; state.dirty=true; $('#tip').style.display='none'; });
+// switching to reduced motion while an automatic build plays jumps to the finished, static network
+reduceMQ.addEventListener('change',()=>{ if(reduceMQ.matches && state.playing){ state.playing=false; state.t=state.T; $('#scrub').value=state.T; $('#play').textContent='Play build';
+  for(let i=0;i<state.g.n;i++) if(!state.placed[i]) placeNode(i); state.alpha=1; } state.dirty=true; });
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{ state.dirty=true; renderDist(); const c=state.expCache[state.model.exp+(state.model.id==='nw'?'nw':'')]; if(c) plot($('#expChart'),c); });
+new MutationObserver(()=>{ state.dirty=true; renderDist(); const c=state.expCache[state.model.exp+(state.model.id==='nw'?'nw':'')]; if(c) plot($('#expChart'),c); }).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
 
 resize(); state.firstFrame=true; selectModel('gnm', true); requestAnimationFrame(frame);
 </script>
