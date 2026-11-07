@@ -22,7 +22,7 @@ An interactive web demo of the network models covered in **Lecture 5: Network mo
 - **Measured structure**: number of nodes and links, average degree, largest degree, average clustering coefficient, average shortest-path length in the giant component, and giant-component size.
 - **Degree distribution**: linear or log–log (log-binned) plots with theory overlays: Poisson for ER, k⁻³ for BA, the target sequence for the configuration model, and predicted exponents for the attractiveness, rank and static models.
 - **Visual cues**: rewired shortcuts in the small-world models are drawn in orange; self-loops and multi-edges in the configuration model are drawn in red, with an option to erase them.
-- **Experiments**: larger simulations that reproduce figures from the slides, such as the percolation transition, the Watts–Strogatz ℓ(p) and C(p) curves, BA versus random attachment, the winner-takes-all effect for α > 1, and tunable clustering in Holme–Kim.
+- **Experiments**: larger simulations that reproduce figures from the slides, such as the percolation transition, the Watts–Strogatz ℓ(p) and C(p) curves (plus clustering plotted against path length as p varies, with the current network marked), BA versus random attachment, the winner-takes-all effect for α > 1, and tunable clustering in Holme–Kim.
 - **Code snippets**: the matching NetworkX call or a short textbook-style Python sketch for each model.
 - Light and dark themes, and a responsive layout for phones.
 

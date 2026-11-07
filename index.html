@@ -205,6 +205,10 @@ h1.course-title{margin-top:26px !important}
       <p class="expdesc" id="expDesc"></p>
       <div><button class="btn" id="expRun">Run experiment</button><span class="expstatus" id="expStatus"></span></div>
       <div class="chartwrap" style="margin-top:10px"><canvas class="chart" id="expChart" role="img" aria-label="Experiment chart" style="height:240px"></canvas></div>
+      <div id="expTwo" hidden>
+        <p class="expdesc" id="expDesc2" style="margin-top:14px"></p>
+        <div class="chartwrap"><canvas class="chart" id="expChart2" role="img" aria-label="Clustering against average path length, one point per rewiring probability p" aria-describedby="expDesc2" style="height:280px"></canvas></div>
+      </div>
     </section>
 
     <section class="blk"><h3>In code</h3><pre class="code" id="pCode"></pre></section>
@@ -440,11 +444,13 @@ function plot(cv,o){
     c.strokeStyle=c.fillStyle=s.color||ink; c.lineWidth=s.width||2;
     if(s.kind==='line'){ c.setLineDash(s.dash||[]); c.beginPath(); pts.forEach((p,i)=>{ const px=X(p[0]),py=Y(p[1]); i?c.lineTo(px,py):c.moveTo(px,py); }); c.stroke(); c.setLineDash([]); }
     else { for(const p of pts){ c.beginPath(); c.arc(X(p[0]),Y(p[1]),s.r||3,0,7); if(s.hollow){c.lineWidth=1.4;c.stroke();} else c.fill(); } }
+    if(s.labels){ c.font='11px '+css('--body'); c.textAlign='left'; s.pts.forEach((p,i)=>{ const t=s.labels[i]; if(!t) return; c.fillStyle=s.labelColor||ink2; c.fillText(t, X(p[0])+(s.dx??7), Y(p[1])+(s.dy??-6)); }); }
   }
+  for(const [nx,ny,nt,al] of (o.notes||[])){ c.font='italic 12px '+css('--body'); c.textAlign=al||'left'; c.fillStyle=ink2; c.fillText(nt, X(nx), Y(ny)); }
   c.restore();
   // legend
   const named=o.series.filter(s=>s.label); c.textAlign='right'; c.font='12px '+css('--body');
-  named.forEach((s,i)=>{ const y=T+14+i*16, x=L+pw-6; c.fillStyle=ink; c.fillText(s.label,x-22,y+4);
+  named.forEach((s,i)=>{ const y=o.legendPos==='br'? T+ph-10-(named.length-1-i)*16 : T+14+i*16, x=L+pw-6; c.fillStyle=ink; c.fillText(s.label,x-22,y+4);
     c.strokeStyle=c.fillStyle=s.color; if(s.kind==='line'){ c.lineWidth=2; c.setLineDash(s.dash||[]); c.beginPath(); c.moveTo(x-16,y); c.lineTo(x,y); c.stroke(); c.setLineDash([]);} else { c.beginPath(); c.arc(x-8,y,3.2,0,7); s.hollow?(c.lineWidth=1.4,c.stroke()):c.fill(); } });
 }
 function guide(gamma, pts, label, color){ // power-law guide through the middle of the tail
@@ -590,11 +596,17 @@ const EXPS={
       return {xlabel:'Average degree ⟨k⟩', ylabel:'Fraction in giant component', xmin:0,xmax:4,ymin:0,ymax:1,
         series:[{kind:'line',pts:th,color:css('--ink2'),dash:[5,4],label:'N → ∞ theory',width:1.6},{kind:'line',pts,color:css('--node'),label:'Simulation, N = 2000'}]}; }},
   smallworld:{title:'Experiment: the small‑world window', desc:'For N = 500 and k = 10, sweeps p from 10⁻⁴ to 1 and plots the path length ℓ(p) and clustering C(p), each relative to the ring lattice at p = 0.',
+    desc2:'The same runs, now with clustering plotted against path length: each dot is one value of p, and the curve is traced as p grows from 10⁻⁴ (top right, the ring lattice) to 1 (bottom left, close to a random graph). The small world is the upper‑left corner, short paths with the clustering still high. The ring marks the network shown above, relative to its own p = 0 lattice.',
     run(){ const N=500,k=10, add=state.model.id==='nw'; const ps=[]; for(let e=-4;e<=0.001;e+=0.25) ps.push(Math.pow(10,e));
       const base=analyze(ws(N,k,0)); const Lp=[],Cp=[];
       for(const p of ps){ let l=0,c=0; for(let r=0;r<2;r++){ const a=analyze(add?nw(N,k,p):ws(N,k,p)); l+=a.ell; c+=a.C; } Lp.push([p,l/2/base.ell]); Cp.push([p,c/2/base.C]); }
+      const CL=ps.map((p,i)=>[Lp[i][1],Cp[i][1]]), sup={'-':'⁻','0':'⁰','1':'¹','2':'²','3':'³','4':'⁴'};
+      const labs=ps.map(p=>{ const e=Math.log10(p); return Math.abs(e-Math.round(e))<1e-9 ? 'p = '+(Math.round(e)===0?'1':'10'+String(Math.round(e)).split('').map(ch=>sup[ch]).join('')) : ''; });
       return {logx:true, xlabel:add?'Shortcut probability p':'Rewiring probability p', ylabel:'Relative to p = 0', ymin:0, ymax:1.05,
-        series:[{kind:'line',pts:Lp,color:css('--node'),label:'ℓ(p) / ℓ(0)'},{kind:'dot',pts:Lp,color:css('--node')},{kind:'line',pts:Cp,color:css('--short'),label:'C(p) / C(0)'},{kind:'dot',pts:Cp,color:css('--short'),hollow:true}]}; }},
+        series:[{kind:'line',pts:Lp,color:css('--node'),label:'ℓ(p) / ℓ(0)'},{kind:'dot',pts:Lp,color:css('--node')},{kind:'line',pts:Cp,color:css('--short'),label:'C(p) / C(0)'},{kind:'dot',pts:Cp,color:css('--short'),hollow:true}],
+        second:{xlabel:'Average path length  ℓ(p) / ℓ(0)', ylabel:'Clustering  C(p) / C(0)', xmin:0, xmax:1.08, ymin:0, ymax:1.1,
+          legendPos:'br', notes:[[0.3,0.78,'↖ small world (short ℓ, high C)','left']],
+          series:[{kind:'line',pts:CL,color:css('--node'),label:add?'Newman–Watts, N = 500, k = 10':'Watts–Strogatz, N = 500, k = 10'},{kind:'dot',pts:CL,color:css('--node'),labels:labs,dx:4,dy:17}]}}; }},
   config:{title:'Experiment: how often does stub matching fail?', desc:'For 1,000 nodes with a power‑law degree sequence (minimum degree 2), measures what share of links are self‑loops or multi‑edges as the exponent γ changes.',
     run(){ const pts1=[],pts2=[]; for(let g=2.0; g<=3.6001; g+=0.1){ let s=0,mu=0,t=0; for(let r=0;r<4;r++){ const c=configModel(1000,'power',0,g,2,false); s+=c.self; mu+=c.multi; t+=c.total; } pts1.push([g,100*s/t]); pts2.push([g,100*mu/t]); }
       return {xlabel:'Degree exponent γ', ylabel:'% of links', ymin:0, series:[{kind:'line',pts:pts2,color:css('--hub'),label:'Multi‑edges'},{kind:'line',pts:pts1,color:css('--short'),label:'Self‑loops',dash:[6,3]}]}; }},
@@ -642,6 +654,17 @@ const state={ model:null, P:{}, mem:{}, g:null, st:null, t:0, T:0, playing:false
     box.appendChild(d); }
 })();
 
+function expKey(){ const m=state.model; return m.exp+(m.id==='nw'?'nw':''); }
+function plotExp(o){ // main experiment chart, plus the C-vs-ℓ chart for the small-world experiment
+  const m=state.model, ex=EXPS[m.exp], two=!!ex.desc2; $('#expTwo').hidden=!two;
+  plot($('#expChart'), o||{series:[],empty:'Press “Run experiment” to generate this chart.'});
+  if(!two) return; $('#expDesc2').innerHTML=ex.desc2;
+  if(!o||!o.second){ plot($('#expChart2'),{series:[],empty:'Press “Run experiment” to generate this chart.'}); return; }
+  const sec=Object.assign({},o.second,{series:o.second.series.slice()}), st=state.st, g=state.g;
+  if(st && g && (m.id==='ws'||m.id==='nw') && isFinite(st.ell)){ const lat=latticeRef(st.n,g.k);
+    sec.series.push({kind:'dot',hollow:true,r:7,pts:[[st.ell/lat.ell, st.C/lat.C]],color:css('--short'),label:`Shown above (N = ${st.n}, k = ${g.k}, p = ${+logP(state.P.pv).toPrecision(2)})`}); sec.xmax=Math.max(sec.xmax, st.ell/lat.ell+0.06); sec.ymax=Math.max(sec.ymax, st.C/lat.C+0.06); }
+  plot($('#expChart2'),sec);
+}
 function selectModel(id, play){
   const m=MODELS.find(x=>x.id===id); state.model=m;
   document.querySelectorAll('.mbtn').forEach(b=>b.setAttribute('aria-current', b.dataset.id===id?'true':'false'));
@@ -650,7 +673,7 @@ function selectModel(id, play){
   $('#pTitle').innerHTML=`<mark>${m.title}</mark>`; $('#pKo').textContent=m.ko; $('#pKo').hidden=!m.ko; $('#pCite').textContent=m.cite; $('#pLede').textContent=m.lede;
   $('#pBuild').innerHTML=m.build; $('#pNotice').innerHTML=m.notice; $('#pCode').textContent=m.code; $('#hudTitle').textContent=m.label;
   const ex=EXPS[m.exp]; $('#expTitle').textContent=ex.title; $('#expDesc').innerHTML=ex.desc; $('#expStatus').textContent='';
-  const cached=state.expCache[m.exp+(m.id==='nw'?'nw':'')]; if(cached) plot($('#expChart'),cached); else plot($('#expChart'),{series:[],empty:'Press “Run experiment” to generate this chart.'});
+  plotExp(state.expCache[expKey()]);
   if(m.theory==='poisson' || m.layout==='ring') setScale('lin',false); else setScale('log',false);
   renderParams(); rebuild(play && !reduceMQ.matches); // no autoplay when the reader asks for reduced motion
   if(window.innerWidth>920) $('#panel').scrollTop=0;
@@ -683,6 +706,7 @@ let timer=null; function schedule(){ clearTimeout(timer); timer=setTimeout(()=>r
 
 function rebuild(play){
   const g=state.model.gen(state.P); state.g=g; state.T=g.edges.length; state.st=analyze(g.dropped? {n:g.n, edges:g.edges.filter((_,i)=>!g.dropped[i])} : g);
+  if(EXPS[state.model.exp].desc2 && state.expCache[expKey()]) plotExp(state.expCache[expKey()]);
   const n=g.n; state.x=new Float64Array(n); state.y=new Float64Array(n); state.vx=new Float64Array(n); state.vy=new Float64Array(n); state.placed=new Uint8Array(n);
   state.ring = state.model.layout==='ring';
   // prepare ring-shortcut and multi-edge flags
@@ -758,7 +782,7 @@ function renderLegend(){
 const cv=$('#net'), ctx=cv.getContext('2d'); let W=0,H=0,DPR=1;
 function resize(){ DPR=window.devicePixelRatio||1; W=cv.clientWidth; H=cv.clientHeight; cv.width=W*DPR; cv.height=H*DPR; state.dirty=true; }
 new ResizeObserver(()=>{ resize(); }).observe($('#board'));
-new ResizeObserver(()=>{ if(state.st){ renderDist(); const c=state.expCache[state.model.exp+(state.model.id==='nw'?'nw':'')]; if(c) plot($('#expChart'),c);} }).observe($('#panel'));
+new ResizeObserver(()=>{ if(state.st){ renderDist(); const c=state.expCache[expKey()]; if(c) plotExp(c);} }).observe($('#panel'));
 
 function tick(a, fast){
   const g=state.g, n=g.n, X=state.x, Y=state.y, VX=state.vx, VY=state.vy;
@@ -904,7 +928,7 @@ $('#regen').onclick=()=>rebuild(false);
 $('#scrub').oninput=e=>{ state.playing=false; $('#play').textContent=state.t<state.T?'Resume':'Play build'; state.t=+e.target.value; state.alpha=Math.max(state.alpha,0.5); state.dirty=true; };
 $('#expRun').onclick=()=>{
   const m=state.model, key=m.exp+(m.id==='nw'?'nw':''); $('#expStatus').textContent='Running…'; $('#expRun').disabled=true;
-  setTimeout(()=>{ try{ const o=EXPS[m.exp].run(); state.expCache[key]=o; plot($('#expChart'),o); $('#expStatus').textContent='Done. Run again for a fresh sample.'; }
+  setTimeout(()=>{ try{ const o=EXPS[m.exp].run(); state.expCache[key]=o; plotExp(o); $('#expStatus').textContent='Done. Run again for a fresh sample.'; }
     catch(err){ $('#expStatus').textContent='The experiment stopped: '+err.message; } $('#expRun').disabled=false; },30);
 };
 // hover
@@ -921,8 +945,8 @@ cv.addEventListener('pointerleave',()=>{ state.hover=-1; state.dirty=true; $('#t
 // switching to reduced motion while an automatic build plays jumps to the finished, static network
 reduceMQ.addEventListener('change',()=>{ if(reduceMQ.matches && state.playing){ state.playing=false; state.t=state.T; $('#scrub').value=state.T; $('#play').textContent='Play build';
   for(let i=0;i<state.g.n;i++) if(!state.placed[i]) placeNode(i); state.alpha=1; } state.dirty=true; });
-window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{ state.dirty=true; renderDist(); const c=state.expCache[state.model.exp+(state.model.id==='nw'?'nw':'')]; if(c) plot($('#expChart'),c); });
-new MutationObserver(()=>{ state.dirty=true; renderDist(); const c=state.expCache[state.model.exp+(state.model.id==='nw'?'nw':'')]; if(c) plot($('#expChart'),c); }).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{ state.dirty=true; renderDist(); const c=state.expCache[expKey()]; if(c) plotExp(c); });
+new MutationObserver(()=>{ state.dirty=true; renderDist(); const c=state.expCache[expKey()]; if(c) plotExp(c); }).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
 
 resize(); state.firstFrame=true; selectModel('gnm', true); requestAnimationFrame(frame);
 </script>
